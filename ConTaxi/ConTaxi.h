@@ -9,7 +9,7 @@
 #include <fcntl.h>
 #include <io.h>
 
-#define BUFFER_SIZE 1024
+
 
 using namespace std;
 using namespace Core;
@@ -18,6 +18,10 @@ using namespace Core;
 TCHAR memCenCon[] = TEXT("Local\\MyFileMappingObject");
 
 // Structs 
+typedef struct THREAD_PARAMETERS {
+	Car* car;
+	BOOL exit;
+}PARAMETERS;
 
 // Threads
 DWORD WINAPI CmdsThread(LPVOID lpParam);

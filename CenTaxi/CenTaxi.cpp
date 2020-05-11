@@ -12,6 +12,11 @@ int wmain(int argc, TCHAR argv[]){
     DWORD threadIDArray[2];
     HANDLE hMutexHandle, tInitMenu, tCommunication;
     PARAMETERS params;
+    HANDLE hTimer;
+    LARGE_INTEGER liDueTime;
+    
+    
+    liDueTime.QuadPart = WAIT_ONE_SECOND;
     params.exit = false;
 
     // Criar um named mutex para garantir que existe apenas uma CenTaxi a correr no sistema
@@ -19,6 +24,18 @@ int wmain(int argc, TCHAR argv[]){
 
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         _tprintf(TEXT("[ERRO] Aplicação já a correr!\n[CODE] %d\n"), GetLastError());
+        return EXIT_FAILURE;
+    }
+
+    hTimer = CreateWaitableTimer(NULL, TRUE, NULL);
+    if (hTimer == NULL) {
+        _tprintf(TEXT("[ERRO] Não foi possivel criar o WaitableTimer!\n[CODE] %d\n"), GetLastError());
+        CloseHandle(hTimer);
+        return EXIT_FAILURE;
+    }
+    if (!SetWaitableTimer(hTimer, &liDueTime, 0, NULL, NULL, 0)) {
+        _tprintf(TEXT("[ERRO] Não foi possivel iniciar o WaitableTimer!\n[CODE] %d\n"), GetLastError());
+        CloseHandle(hTimer);
         return EXIT_FAILURE;
     }
 
@@ -49,23 +66,21 @@ int wmain(int argc, TCHAR argv[]){
     CloseHandle(hMutexHandle);
     
 
+    if (WaitForSingleObject(hTimer, INFINITE) != WAIT_OBJECT_0) {
+        printf("[ERRO] Não foi possível iniciar o WaitForSingleObject!\n[CODE] %d\n", GetLastError());
+        CloseHandle(hTimer);
+        return EXIT_FAILURE;
+    }
+    CloseHandle(hTimer);
+    _tprintf(TEXT("TOTAL CARROS: %d!\n"), (int) params.cars.size());
     return EXIT_SUCCESS;
 }
 
 DWORD WINAPI InitMenu(LPVOID lpParam) {
     PARAMETERS* params = (PARAMETERS*)lpParam;
-    TCHAR command[100] = TEXT("");
-    HANDLE hTimer, sCanRead;
-    LARGE_INTEGER liDueTime;
-    liDueTime.QuadPart = WAIT_ONE_SECOND;
+    TCHAR command[COMMAND_SIZE] = TEXT("");
+    HANDLE sCanRead;
 
-
-    hTimer = CreateWaitableTimer(NULL, TRUE, NULL);
-    if (hTimer == NULL) {
-        _tprintf(TEXT("[ERRO] Não foi possivel criar o WaitableTimer!\n[CODE] %d\n"), GetLastError());
-        CloseHandle(hTimer);
-        return EXIT_FAILURE;
-    }
 
     while (true) {
         _tprintf(TEXT("COMMAND: "));
@@ -78,18 +93,6 @@ DWORD WINAPI InitMenu(LPVOID lpParam) {
         }
         if (_tcscmp(command, TEXT("exit")) == 0) {
             _tprintf(TEXT("Cya!\n"));
-            if (!SetWaitableTimer(hTimer, &liDueTime, 0, NULL, NULL, 0)) {
-                _tprintf(TEXT("[ERRO] Não foi possivel iniciar o WaitableTimer!\n[CODE] %d\n"), GetLastError());
-                CloseHandle(hTimer);
-                return EXIT_FAILURE;
-            }
-            if (WaitForSingleObject(hTimer, INFINITE) != WAIT_OBJECT_0) {
-                printf("[ERRO] Não foi possível iniciar o WaitForSingleObject!\n[CODE] %d\n", GetLastError());
-                CloseHandle(hTimer);
-                return EXIT_FAILURE;
-            }
-
-
             params->exit = true;
 
             sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_CAN_READ_CENCON);
@@ -100,14 +103,14 @@ DWORD WINAPI InitMenu(LPVOID lpParam) {
             }
             ReleaseSemaphore(sCanRead, 1, NULL);
             CloseHandle(sCanRead);
-            CloseHandle(hTimer);
+
             return EXIT_SUCCESS;
         }
     }
 }
 
 DWORD WINAPI CommsThread(LPVOID lpParam) {
-    LPCTSTR pBuf;
+    TAXI * pBuf;
     HANDLE hFileMapping, hFile, sCanRead, sCanWrite;
     PARAMETERS* params = (PARAMETERS*)lpParam;
 
@@ -132,7 +135,7 @@ DWORD WINAPI CommsThread(LPVOID lpParam) {
     }
 
 
-    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, sizeof(BUFFER_SIZE), SHAREDMEMORY_CEN_CON_ZONE);
+    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, BUFFER_SIZE, SHAREDMEMORY_CEN_CON_ZONE);
 
     if (hFileMapping == NULL) {
         _tprintf(TEXT("[ERRO] Não foi possivel criar o file mapping!\n[CODE] %d\n"), GetLastError());
@@ -142,7 +145,7 @@ DWORD WINAPI CommsThread(LPVOID lpParam) {
         CloseHandle(hFileMapping);
         return EXIT_FAILURE;
     }
-    pBuf = (LPTSTR) MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(BUFFER_SIZE));
+    pBuf = (TAXI*) MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(TAXI));
     if (pBuf == NULL) {
         _tprintf(TEXT("[ERRO] Não foi possivel mapear o ficheiro!\n[CODE] %d\n"), GetLastError());
         CloseHandle(sCanWrite);
@@ -155,12 +158,12 @@ DWORD WINAPI CommsThread(LPVOID lpParam) {
     while(!params->exit){
         WaitForSingleObject(sCanRead, INFINITE);
         if (!params->exit) {
-            _tprintf(TEXT("\n[CAR] %s\nCOMMAND:"), pBuf);
+            Car *c = new Car(pBuf->pid, pBuf->row, pBuf->col, pBuf->matricula);
+            params->cars.push_back(c);
+            _tprintf(TEXT("\n[NEW CAR] Entrou um novo taxi! Matricula: %s\nCOMMAND: "), c->getPlate());
             ReleaseSemaphore(sCanWrite, 1, NULL);
         }
     }
-    _tprintf(TEXT("EXIT\n"));
-
     UnmapViewOfFile(pBuf);
     CloseHandle(sCanWrite);
     CloseHandle(sCanRead);

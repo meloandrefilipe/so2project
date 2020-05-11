@@ -1,10 +1,11 @@
 #include "Car.h"
 
-Car::Car(int row, int col, TCHAR * plate){
+Car::Car(int id, int row, int col, TCHAR * plate){
+	this->id = id;
 	this->col = col;
 	this->row = row;
-	this->plate = new TCHAR[20];
-	_tcscpy_s(this->plate, 20 ,plate);
+	this->plate = new TCHAR[TAXI_PLATE_SIZE];
+	_tcscpy_s(this->plate, TAXI_PLATE_SIZE,plate);
 }
 
 Car::~Car()
@@ -20,6 +21,10 @@ int Car::getRow()
 int Car::getCol()
 {
 	return this->col;
+}
+int Car::getId()
+{
+	return this->id;
 }
 
 TCHAR* Car::getPlate()

@@ -8,10 +8,8 @@
 #include "Core.h"
 #include "Car.h"
 #include <fcntl.h>
+#include <vector>
 #include <io.h>
-
-
-#define BUFFER_SIZE 1024
 
 using namespace std;
 using namespace Core;
@@ -23,7 +21,10 @@ LPCWSTR  mainMutexName = L"centaxi.main.mutex";
 DWORD WINAPI InitMenu(LPVOID lpParam);
 DWORD WINAPI CommsThread(LPVOID lpParam);
 
-// Structs 
-
+// Structs
+typedef struct THREAD_PARAMETERS {
+	BOOL exit;
+	vector<Car*> cars;
+}PARAMETERS;
 
 // Functions
