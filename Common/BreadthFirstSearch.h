@@ -2,6 +2,7 @@
 #include <vector>
 #include <fstream>
 #include <map>
+
 using namespace std;
 
 typedef struct BREADTHFIRSTSEARCH_BESTPATH {

@@ -13,8 +13,6 @@
 
 using namespace std;
 
-// Vars
-LPCWSTR  mainMutexName = L"centaxi.main.mutex";
 
 // Threads
 DWORD WINAPI InitMenu(LPVOID lpParam);

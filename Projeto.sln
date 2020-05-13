@@ -14,11 +14,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ConPass", "ConPass\ConPass.
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Common", "Common\Common.vcxproj", "{5BA3505C-6300-4A0F-8D5F-D4F8B3F3CDC4}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{AA3121B2-B079-4835-9AE3-87FB45A677A1}"
-	ProjectSection(SolutionItems) = preProject
-		map10_10.txt = map10_10.txt
-	EndProjectSection
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64

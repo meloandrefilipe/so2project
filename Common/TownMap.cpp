@@ -2,7 +2,6 @@
 
 TownMap ::TownMap() {
 	this->nodes = buildNodes();
-	this->edges = buildEdges(this->nodes);
 }
 
 TownMap::~TownMap(){
@@ -14,10 +13,6 @@ vector<Node*> TownMap::getNodes()
 	return this->nodes;
 }
 
-vector<Edge*> TownMap::getEdges()
-{
-	return this->edges;
-}
 
 vector<Node*> buildNodes() {
     vector<Node*> nodes;
@@ -44,33 +39,25 @@ vector<Node*> buildNodes() {
             col = 0;
         }
     }
-    return nodes;
-}
-vector<Edge*> buildEdges(vector<Node*> nodes) {
-    vector<Edge*> edges;
-    for (int i = 0; i < nodes.size(); i++){
+    for (int i = 0; i < nodes.size(); i++) {
         if (nodes[i]->isRoad()) {
             for (int j = 0; j < nodes.size(); j++) {
                 if (nodes[j]->isRoad()) {
                     if ((nodes[j]->getCol() == (nodes[i]->getCol() - 1)) && (nodes[j]->getRow() == nodes[i]->getRow())) { // ver o da atras
                         nodes[i]->addNeighbour(nodes[j]);
-                        edges.push_back(new Edge(nodes[i]->getID(), nodes[j]->getID()));
                     }
                     if ((nodes[j]->getCol() == (nodes[i]->getCol() + 1)) && (nodes[j]->getRow() == nodes[i]->getRow())) { // ver o da frente
                         nodes[i]->addNeighbour(nodes[j]);
-                        edges.push_back(new Edge(nodes[i]->getID(), nodes[j]->getID()));
                     }
                     if ((nodes[j]->getRow() == (nodes[i]->getRow() + 1)) && (nodes[j]->getCol() == nodes[i]->getCol())) { // ver o de baixo
                         nodes[i]->addNeighbour(nodes[j]);
-                        edges.push_back(new Edge(nodes[i]->getID(), nodes[j]->getID()));
                     }
                     if ((nodes[j]->getRow() == (nodes[i]->getRow() - 1)) && (nodes[j]->getCol() == nodes[i]->getCol())) { // ver o de cima
                         nodes[i]->addNeighbour(nodes[j]);
-                        edges.push_back(new Edge(nodes[i]->getID(), nodes[j]->getID()));
                     }
                 }
             }
         }
     }
-    return edges;
+    return nodes;
 }

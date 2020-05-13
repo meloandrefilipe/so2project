@@ -1,8 +1,6 @@
 #include "CenTaxi.h"
 
-
-
-int wmain(int argc, TCHAR argv[]){
+int _tmain(int argc, TCHAR argv[]){
 #ifdef UNICODE
     _setmode(_fileno(stdin), _O_WTEXT);
     _setmode(_fileno(stdout), _O_WTEXT);
@@ -10,27 +8,67 @@ int wmain(int argc, TCHAR argv[]){
 #endif
 
     DWORD threadIDArray[2];
-    HANDLE hMutexHandle, tInitMenu, tCommunication;
+    HANDLE hMutexHandle, tInitMenu, tCommunication, hTimer;
+
     PARAMETERS params;
-    HANDLE hTimer;
     LARGE_INTEGER liDueTime;
+
     TownMap* townMap = new TownMap();
 
     Node* dest = NULL;
     Node* src = NULL;
     vector<Node*> nodes = townMap->getNodes();
 
+    HMODULE hDLL;
+    hDLL = LoadLibrary(DLL_PATH_64);
+    if (hDLL == NULL) {
+        _tprintf(TEXT("[ERRO] Não foi possivel carregar a DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
+        return EXIT_FAILURE;
+    }
+
+    FuncRegister fRegister = (FuncRegister)GetProcAddress(hDLL, "dll_register");
+    FuncLog fLog = (FuncLog)GetProcAddress(hDLL, "dll_log");
+
+    if (fRegister == NULL || fLog == NULL) {
+        _tprintf(TEXT("[ERRO] Não foi possivel carregar as funções da DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
+        FreeLibrary(hDLL);
+        return EXIT_FAILURE;
+    }
+
+
+
+    // Criar um named mutex para garantir que existe apenas uma CenTaxi a correr no sistema
+    hMutexHandle = CreateMutex(NULL, TRUE, CENTAXI_MAIN_MUTEX);
+
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        tstringstream msg;
+        msg << "[ERRO] Aplicação já a correr!" << endl;
+        msg << "[CODE] " << GetLastError() << endl;
+        _tprintf(msg.str().c_str());
+        fLog((TCHAR *)msg.str().c_str());
+        FreeLibrary(hDLL);
+        return EXIT_FAILURE;
+    }
+    fRegister((TCHAR*)CENTAXI_MAIN_MUTEX, 1);
+
+
     for (int i = 0; i < nodes.size(); i++)
     {
-        if (nodes[i]->getRow() == 0 && nodes[i]->getCol() == 0) {
+        if (nodes[i]->getRow() == 1 && nodes[i]->getCol() == 1) {
             src = nodes[i];
             if (!nodes[i]->isRoad()) {
-                _tprintf(TEXT("[ERRO] O ponto (%d,%d) nao é um pedaço de estrada!\n"),nodes[i]->getRow(), nodes[i]->getCol());
+                tstringstream msg;
+                msg << "[ERRO] O ponto (" << nodes[i]->getRow() << ", " << nodes[i]->getCol() << ") nao é um pedaço de estrada!" << endl;
+                _tprintf(msg.str().c_str());
+                fLog((TCHAR*)msg.str().c_str());
             }
         }
         if (nodes[i]->getRow() == 6 && nodes[i]->getCol() == 5) {
             if (!nodes[i]->isRoad()) {
-                _tprintf(TEXT("[ERRO] O ponto (%d,%d) nao é um pedaço de estrada!\n"), nodes[i]->getRow(), nodes[i]->getCol());
+                tstringstream msg;
+                msg << "[ERRO] O ponto (" << nodes[i]->getRow() << ", " << nodes[i]->getCol() << ") nao é um pedaço de estrada!" << endl;
+                _tprintf(msg.str().c_str());
+                fLog((TCHAR*)msg.str().c_str());
             }
             dest = nodes[i];
         }
@@ -52,22 +90,26 @@ int wmain(int argc, TCHAR argv[]){
     liDueTime.QuadPart = WAIT_ONE_SECOND;
     params.exit = false;
 
-    // Criar um named mutex para garantir que existe apenas uma CenTaxi a correr no sistema
-    hMutexHandle = CreateMutex(NULL, TRUE, mainMutexName);
-
-    if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        _tprintf(TEXT("[ERRO] Aplicação já a correr!\n[CODE] %d\n"), GetLastError());
-        return EXIT_FAILURE;
-    }
+ 
 
     hTimer = CreateWaitableTimer(NULL, TRUE, NULL);
     if (hTimer == NULL) {
-        _tprintf(TEXT("[ERRO] Não foi possivel criar o WaitableTimer!\n[CODE] %d\n"), GetLastError());
+        tstringstream msg;
+        msg << "[ERRO] Não foi possivel criar o WaitableTimer!" << endl;
+        msg << "[CODE] " << GetLastError() << endl;
+        _tprintf(msg.str().c_str());
+        fLog((TCHAR*)msg.str().c_str());
+        FreeLibrary(hDLL);
         CloseHandle(hTimer);
         return EXIT_FAILURE;
     }
     if (!SetWaitableTimer(hTimer, &liDueTime, 0, NULL, NULL, 0)) {
-        _tprintf(TEXT("[ERRO] Não foi possivel iniciar o WaitableTimer!\n[CODE] %d\n"), GetLastError());
+        tstringstream msg;
+        msg << "[ERRO] Não foi possivel iniciar o WaitableTimer!" << endl;
+        msg << "[CODE] " << GetLastError() << endl;
+        _tprintf(msg.str().c_str());
+        fLog((TCHAR*)msg.str().c_str());
+        FreeLibrary(hDLL);
         CloseHandle(hTimer);
         return EXIT_FAILURE;
     }
@@ -79,7 +121,12 @@ int wmain(int argc, TCHAR argv[]){
 
 
     if (tInitMenu == NULL || tCommunication == NULL) {
-        _tprintf(TEXT("[ERRO] Não foi possivel criar a Thread!\n[CODE] %d\n"), GetLastError());
+        tstringstream msg;
+        msg << "[ERRO] Não foi possivel criar a Thread!" << endl;
+        msg << "[CODE] " << GetLastError() << endl;
+        _tprintf(msg.str().c_str());
+        fLog((TCHAR*)msg.str().c_str());
+        FreeLibrary(hDLL);
         return EXIT_FAILURE;
     }
 
@@ -94,11 +141,17 @@ int wmain(int argc, TCHAR argv[]){
     
 
     if (WaitForSingleObject(hTimer, INFINITE) != WAIT_OBJECT_0) {
-        printf("[ERRO] Não foi possível iniciar o WaitForSingleObject!\n[CODE] %d\n", GetLastError());
+        tstringstream msg;
+        msg << "[ERRO] Não foi possível iniciar o WaitForSingleObject!" << endl;
+        msg << "[CODE] " << GetLastError() << endl;
+        _tprintf(msg.str().c_str());
+        fLog((TCHAR*)msg.str().c_str());
+        FreeLibrary(hDLL);
         CloseHandle(hTimer);
         return EXIT_FAILURE;
     }
     CloseHandle(hTimer);
+    FreeLibrary(hDLL);
     return EXIT_SUCCESS;
 }
 
@@ -106,12 +159,30 @@ DWORD WINAPI InitMenu(LPVOID lpParam) {
     PARAMETERS* params = (PARAMETERS*)lpParam;
     TCHAR command[COMMAND_SIZE] = TEXT("");
     HANDLE sCanRead;
+    HMODULE hDLL;
+    hDLL = LoadLibrary(DLL_PATH_64);
+    if (hDLL == NULL) {
+        _tprintf(TEXT("[ERRO] Não foi possivel carregar a DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
+        return EXIT_FAILURE;
+    }
 
+    FuncRegister fRegister = (FuncRegister)GetProcAddress(hDLL, "dll_register");
+    FuncLog fLog = (FuncLog)GetProcAddress(hDLL, "dll_log");
+
+    if (fRegister == NULL || fLog == NULL) {
+        FreeLibrary(hDLL);
+        _tprintf(TEXT("[ERRO] Não foi possivel carregar as funções da DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
+        return EXIT_FAILURE;
+    }
 
     while (true) {
         _tprintf(TEXT("COMMAND: "));
         if (fgetws(command, sizeof(command), stdin) == NULL) {
-            _tprintf(TEXT("[ERRO] Ocorreu um erro a ler o comando inserido!\n[CODE] %d\n"), GetLastError());
+            tstringstream msg;
+            msg << "[ERRO] Ocorreu um erro a ler o comando inserido!" << endl;
+            msg << "[CODE] " << GetLastError() << endl;
+            _tprintf(msg.str().c_str());
+            fLog((TCHAR*)msg.str().c_str());
         }
         for (int i = 0; i < sizeof(command) && command[i]; i++){
             if (command[i] == '\n')
@@ -123,13 +194,17 @@ DWORD WINAPI InitMenu(LPVOID lpParam) {
 
             sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_CAN_READ_CENCON);
             if (sCanRead == NULL) {
-                _tprintf(TEXT("[ERRO] Não foi possivel criar o somafro!\n[CODE] %d\n"), GetLastError());
+                tstringstream msg;
+                msg << "[ERRO] Não foi possivel criar o somafro!" << endl;
+                msg << "[CODE] " << GetLastError() << endl;
+                _tprintf(msg.str().c_str());
+                fLog((TCHAR*)msg.str().c_str());
                 CloseHandle(sCanRead);
                 return EXIT_FAILURE;
             }
             ReleaseSemaphore(sCanRead, 1, NULL);
             CloseHandle(sCanRead);
-
+            FreeLibrary(hDLL);
             return EXIT_SUCCESS;
         }
     }
@@ -139,32 +214,60 @@ DWORD WINAPI CommsThread(LPVOID lpParam) {
     TAXI * pBuf;
     HANDLE hFileMapping, hFile, sCanRead, sCanWrite;
     PARAMETERS* params = (PARAMETERS*)lpParam;
+    HMODULE hDLL;
+    hDLL = LoadLibrary(DLL_PATH_64);
+    if (hDLL == NULL) {
+        _tprintf(TEXT("[ERRO] Não foi possivel carregar a DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
+        return EXIT_FAILURE;
+    }
 
+    FuncRegister fRegister = (FuncRegister)GetProcAddress(hDLL, "dll_register");
+    FuncLog fLog = (FuncLog)GetProcAddress(hDLL, "dll_log");
+
+    if (fRegister == NULL || fLog == NULL) {
+        FreeLibrary(hDLL);
+        _tprintf(TEXT("[ERRO] Não foi possivel carregar as funções da DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
+        return EXIT_FAILURE;
+    }
     hFile = CreateFile(SHAREDMEMORY_CEN_CON, GENERIC_ALL, FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-
     if (hFile == NULL) {
-        _tprintf(TEXT("[ERRO] Não foi possível criar o ficheiro %s!\n[CODE] %d\n"), SHAREDMEMORY_CEN_CON ,GetLastError());
+        tstringstream msg;
+        msg << "[ERRO] Não foi possível criar o ficheiro " << SHAREDMEMORY_CEN_CON <<"!"<< endl;
+        msg << "[CODE] " << GetLastError() << endl;
+        _tprintf(msg.str().c_str());
+        fLog((TCHAR*)msg.str().c_str());
+        FreeLibrary(hDLL);
         CloseHandle(hFile);
         return EXIT_FAILURE;
     }
 
     sCanWrite = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, SEMAPHORE_CAN_WRITE_CENCON);
     sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_CAN_READ_CENCON);
-
-
     if (sCanWrite == NULL || sCanRead == NULL) {
-        _tprintf(TEXT("[ERRO] Não foi possivel criar o somafro!\n[CODE] %d\n"), GetLastError());
+        tstringstream msg;
+        msg << "[ERRO] Não foi possivel criar o somafro!" << endl;
+        msg << "[CODE] " << GetLastError() << endl;
+        _tprintf(msg.str().c_str());
+        fLog((TCHAR*)msg.str().c_str());
+        FreeLibrary(hDLL);
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(hFile);
         return EXIT_FAILURE;
     }
-
+    fRegister((TCHAR*)SEMAPHORE_CAN_WRITE_CENCON, 3);
+    fRegister((TCHAR*)SEMAPHORE_CAN_READ_CENCON, 3);
 
     hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, BUFFER_SIZE, SHAREDMEMORY_CEN_CON_ZONE);
+    
 
     if (hFileMapping == NULL) {
-        _tprintf(TEXT("[ERRO] Não foi possivel criar o file mapping!\n[CODE] %d\n"), GetLastError());
+        tstringstream msg;
+        msg << "[ERRO] Não foi possivel criar o file mapping!" << endl;
+        msg << "[CODE] " << GetLastError() << endl;
+        _tprintf(msg.str().c_str());
+        fLog((TCHAR*)msg.str().c_str());
+        FreeLibrary(hDLL);
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(hFile);
@@ -173,23 +276,34 @@ DWORD WINAPI CommsThread(LPVOID lpParam) {
     }
     pBuf = (TAXI*) MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(TAXI));
     if (pBuf == NULL) {
-        _tprintf(TEXT("[ERRO] Não foi possivel mapear o ficheiro!\n[CODE] %d\n"), GetLastError());
+        tstringstream msg;
+        msg << "[ERRO] Não foi possivel mapear o ficheiro!" << endl;
+        msg << "[CODE] " << GetLastError() << endl;
+        _tprintf(msg.str().c_str());
+        fLog((TCHAR*)msg.str().c_str());
+        FreeLibrary(hDLL);
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(hFile);
         CloseHandle(hFileMapping);
         return EXIT_FAILURE;
     } 
+    fRegister((TCHAR*)SHAREDMEMORY_CEN_CON_ZONE, 7);
 
     while(!params->exit){
         WaitForSingleObject(sCanRead, INFINITE);
         if (!params->exit) {
             Car *c = new Car(pBuf->pid, pBuf->row, pBuf->col, pBuf->matricula);
             params->cars.push_back(c);
-            _tprintf(TEXT("\n[NEW CAR] Entrou um novo taxi! Matricula: %s\nCOMMAND: "), c->getPlate());
+            tstringstream msg;
+            msg << "[NEW CAR] Entrou um novo taxi! Matricula: " << c->getPlate() << endl;
+            _tprintf(msg.str().c_str());
+            fLog((TCHAR*)msg.str().c_str());
+            _tprintf(TEXT("COMMAND: "));
             ReleaseSemaphore(sCanWrite, 1, NULL);
         }
     }
+    FreeLibrary(hDLL);
     UnmapViewOfFile(pBuf);
     CloseHandle(sCanWrite);
     CloseHandle(sCanRead);
