@@ -16,46 +16,14 @@
 #define BUFFER_SIZE 1024
 #define TAXI_PLATE_SIZE 100
 #define COMMAND_SIZE 100
+#define MAP_NAME "..\\map10_10.txt"
 
 
 using namespace std;
 
-static int NODES = 1000;
-static int EDGES = 1000;
-
-namespace Core {
-	typedef struct SHAREDMEMORY_TAXI {
-		int row;
-		int col;
-		int pid;
-		TCHAR matricula[TAXI_PLATE_SIZE];
-	}TAXI;
-
-	class Node {
-		TCHAR* id;
-		int row;
-		int col;
-	public:
-		Node(int row, int col);
-		~Node();
-		int getRow() const;
-		int getCol() const;
-		TCHAR* getID() const;
-		void toString() const;
-	};
-
-	class Edge {
-		TCHAR* id;
-		TCHAR* source;
-		TCHAR* target;
-
-	public:
-		Edge(TCHAR* source, TCHAR* target);
-		~Edge();
-		TCHAR* getSource() const;
-		TCHAR* getTarget() const;
-		TCHAR* getID() const;
-		void toString() const;
-	};
-
-}
+typedef struct SHAREDMEMORY_TAXI {
+	int row;
+	int col;
+	int pid;
+	TCHAR matricula[TAXI_PLATE_SIZE];
+}TAXI;

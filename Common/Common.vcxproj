@@ -138,12 +138,20 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="BreadthFirstSearch.cpp" />
     <ClCompile Include="Car.cpp" />
     <ClCompile Include="Core.cpp" />
+    <ClCompile Include="Edge.cpp" />
+    <ClCompile Include="TownMap.cpp" />
+    <ClCompile Include="Node.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BreadthFirstSearch.h" />
     <ClInclude Include="Car.h" />
     <ClInclude Include="Core.h" />
+    <ClInclude Include="Edge.h" />
+    <ClInclude Include="TownMap.h" />
+    <ClInclude Include="Node.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

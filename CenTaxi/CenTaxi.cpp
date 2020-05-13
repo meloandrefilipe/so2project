@@ -14,8 +14,41 @@ int wmain(int argc, TCHAR argv[]){
     PARAMETERS params;
     HANDLE hTimer;
     LARGE_INTEGER liDueTime;
-    
-    
+    TownMap* townMap = new TownMap();
+
+    Node* dest = NULL;
+    Node* src = NULL;
+    vector<Node*> nodes = townMap->getNodes();
+
+    for (int i = 0; i < nodes.size(); i++)
+    {
+        if (nodes[i]->getRow() == 0 && nodes[i]->getCol() == 0) {
+            src = nodes[i];
+            if (!nodes[i]->isRoad()) {
+                _tprintf(TEXT("[ERRO] O ponto (%d,%d) nao é um pedaço de estrada!\n"),nodes[i]->getRow(), nodes[i]->getCol());
+            }
+        }
+        if (nodes[i]->getRow() == 6 && nodes[i]->getCol() == 5) {
+            if (!nodes[i]->isRoad()) {
+                _tprintf(TEXT("[ERRO] O ponto (%d,%d) nao é um pedaço de estrada!\n"), nodes[i]->getRow(), nodes[i]->getCol());
+            }
+            dest = nodes[i];
+        }
+    }
+    if (src != NULL && dest != NULL) {
+        _tprintf(TEXT("[SRC] ID: %s \n"), src->getID());
+        _tprintf(TEXT("[DEST] ID: %s \n"), dest->getID());
+
+        BreadthFirstSearch bfs = BreadthFirstSearch(townMap);
+        BESTPATH bp = bfs.getBestPath(src, dest);
+
+
+        _tprintf(TEXT("[MAP] cost: %d\n"), bp.cost);
+        for (int i = 0; i < bp.path.size(); i++)
+        {
+            _tprintf(TEXT("[PATH] %s\n"), bp.path[i]->getID());
+        }
+    }
     liDueTime.QuadPart = WAIT_ONE_SECOND;
     params.exit = false;
 
@@ -40,12 +73,6 @@ int wmain(int argc, TCHAR argv[]){
     }
 
     _tprintf(TEXT("CenTaxi!\n"));
-    Node n = Node(0,0);
-    Node n1 = Node(5,10);
-    Edge e = Edge(n.getID(), n1.getID());
-    n.toString();
-    n1.toString();
-    e.toString();
 
     tInitMenu = CreateThread(NULL, 0, InitMenu, &params, 0, &threadIDArray[0]);
     tCommunication = CreateThread(NULL, 0, CommsThread, &params, 0, &threadIDArray[1]);
@@ -72,7 +99,6 @@ int wmain(int argc, TCHAR argv[]){
         return EXIT_FAILURE;
     }
     CloseHandle(hTimer);
-    _tprintf(TEXT("TOTAL CARROS: %d!\n"), (int) params.cars.size());
     return EXIT_SUCCESS;
 }
 

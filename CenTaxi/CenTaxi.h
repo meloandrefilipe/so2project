@@ -5,14 +5,13 @@
 #include <string.h>
 #include <tchar.h>
 #include <strsafe.h>
-#include "Core.h"
-#include "Car.h"
 #include <fcntl.h>
 #include <vector>
 #include <io.h>
+#include "BreadthFirstSearch.h"
+
 
 using namespace std;
-using namespace Core;
 
 // Vars
 LPCWSTR  mainMutexName = L"centaxi.main.mutex";
@@ -26,5 +25,3 @@ typedef struct THREAD_PARAMETERS {
 	BOOL exit;
 	vector<Car*> cars;
 }PARAMETERS;
-
-// Functions
