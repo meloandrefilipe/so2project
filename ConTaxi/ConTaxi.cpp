@@ -54,8 +54,6 @@ int _tmain(int argc ,TCHAR* argv[]) {
 	CloseHandle(commandsThread);
 	CloseHandle(closeThread);
 	CloseHandle(communicationThread);
-	_tprintf(TEXT("[SHUTDOWN] A Sair...\n"));
-	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 5);
 
 	FreeLibrary(hDLL);
 	return EXIT_SUCCESS;
@@ -144,21 +142,11 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 		}
 		pch = _tcstok_s(command, TEXT(" "), &something);
 		if (_tcscmp(pch, TEXT("exit")) == 0) {
-			HANDLE hEventClose = CreateEvent(NULL, FALSE, FALSE, EVENT_CLOSE_ALL);
-
-			if (hEventClose == NULL) {
-				tstringstream msg;
-				msg << "[ERRO] Não foi possivel criar o evento!" << endl;
-				msg << "[CODE] " << GetLastError() << endl;
-				_tprintf(msg.str().c_str());
-				fLog((TCHAR*)msg.str().c_str());
-			}
-
-			SetEvent(hEventClose);
 			params->exit = true;
 			FreeLibrary(hDLL);
-			CloseHandle(hEventClose);
-			return EXIT_SUCCESS;
+			_tprintf(TEXT("[SHUTDOWN] A Sair...\n"));
+			WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 5);
+			exit(EXIT_SUCCESS);
 		}
 		else if (_tcscmp(pch, TEXT("acelerar")) == 0) {
 			params->car->speedUp();

@@ -34,8 +34,6 @@ int _tmain(int argc, TCHAR argv[]){
         return EXIT_FAILURE;
     }
 
-
-
     // Criar um named mutex para garantir que existe apenas uma CenTaxi a correr no sistema
     hMutexHandle = CreateMutex(NULL, TRUE, CENTAXI_MAIN_MUTEX);
 
@@ -51,7 +49,7 @@ int _tmain(int argc, TCHAR argv[]){
     fRegister((TCHAR*)CENTAXI_MAIN_MUTEX, 1);
 
 
-    for (int i = 0; i < nodes.size(); i++)
+  /*  for (int i = 0; i < nodes.size(); i++)
     {
         if (nodes[i]->getRow() == 1 && nodes[i]->getCol() == 1) {
             src = nodes[i];
@@ -71,21 +69,20 @@ int _tmain(int argc, TCHAR argv[]){
             }
             dest = nodes[i];
         }
-    }
-    if (src != NULL && dest != NULL) {
-        _tprintf(TEXT("[SRC] ID: %s \n"), src->getID());
-        _tprintf(TEXT("[DEST] ID: %s \n"), dest->getID());
+    }*/
+    //if (src != NULL && dest != NULL) {
+    //    _tprintf(TEXT("[SRC] ID: %s \n"), src->getID());
+    //    _tprintf(TEXT("[DEST] ID: %s \n"), dest->getID());
+    //    BreadthFirstSearch bfs = BreadthFirstSearch(townMap);
+    //    BESTPATH bp = bfs.getBestPath(src, dest);
+    //    _tprintf(TEXT("[MAP] cost: %d\n"), bp.cost);
+    //    for (int i = 0; i < bp.path.size(); i++)
+    //    {
+    //        _tprintf(TEXT("[PATH] %s\n"), bp.path[i]->getID());
+    //    }
+    //}
 
-        BreadthFirstSearch bfs = BreadthFirstSearch(townMap);
-        BESTPATH bp = bfs.getBestPath(src, dest);
 
-
-        _tprintf(TEXT("[MAP] cost: %d\n"), bp.cost);
-        for (int i = 0; i < bp.path.size(); i++)
-        {
-            _tprintf(TEXT("[PATH] %s\n"), bp.path[i]->getID());
-        }
-    }
     params.exit = false;
 
     _tprintf(TEXT("CenTaxi!\n"));
