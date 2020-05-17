@@ -8,8 +8,6 @@ int _tmain(int argc ,TCHAR* argv[]) {
 	_setmode(_fileno(stdout), _O_WTEXT);
 	_setmode(_fileno(stderr), _O_WTEXT);
 #endif
-	HANDLE hTimer;
-	LARGE_INTEGER liDueTime;
 	DWORD idCommandsThread, idCommunicationThread, idCloseThread, idGetCarDataThread;
 	HANDLE commandsThread, communicationThread, closeThread, getCarDataThread;
 	PARAMETERS params; 
@@ -28,31 +26,8 @@ int _tmain(int argc ,TCHAR* argv[]) {
 		_tprintf(TEXT("[ERRO] Não foi possivel carregar as funções da DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
 		return EXIT_FAILURE;
 	}
-	liDueTime.QuadPart = WAIT_ONE_SECOND;
 
 	params.exit = false;
-	
-	hTimer = CreateWaitableTimer(NULL, TRUE, NULL);
-	if (hTimer == NULL) {
-		tstringstream msg;
-		msg << "[ERRO] Não foi possivel criar o WaitableTimer!" << endl;
-		msg << "[CODE] " << GetLastError() << endl;
-		_tprintf(msg.str().c_str());
-		fLog((TCHAR*)msg.str().c_str());
-		CloseHandle(hTimer);
-		FreeLibrary(hDLL);
-		return EXIT_FAILURE;
-	}
-	if (!SetWaitableTimer(hTimer, &liDueTime, 0, NULL, NULL, 0)) {
-		tstringstream msg;
-		msg << "[ERRO] Não foi possivel iniciar o WaitableTimer!" << endl;
-		msg << "[CODE] " << GetLastError() << endl;
-		_tprintf(msg.str().c_str());
-		fLog((TCHAR*)msg.str().c_str());
-		CloseHandle(hTimer);
-		FreeLibrary(hDLL);
-		return EXIT_FAILURE;
-	}
 
 	getCarDataThread = CreateThread(NULL, 0, GetCarDataThread, &params, 0, &idGetCarDataThread);
 	closeThread = CreateThread(NULL, 0, CloseThread, &params, 0, &idCloseThread);
@@ -79,21 +54,10 @@ int _tmain(int argc ,TCHAR* argv[]) {
 	CloseHandle(commandsThread);
 	CloseHandle(closeThread);
 	CloseHandle(communicationThread);
-	_tprintf(TEXT("Cya!\n"));
-
-	if (WaitForSingleObject(hTimer, INFINITE) != WAIT_OBJECT_0) {
-		tstringstream msg;
-		msg << "[ERRO] Não foi possível iniciar o WaitForSingleObject!" << endl;
-		msg << "[CODE] " << GetLastError() << endl;
-		_tprintf(msg.str().c_str());
-		fLog((TCHAR*)msg.str().c_str());
-		CloseHandle(hTimer);
-		FreeLibrary(hDLL);
-		return EXIT_FAILURE;
-	}
+	_tprintf(TEXT("[SHUTDOWN] A Sair...\n"));
+	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 5);
 
 	FreeLibrary(hDLL);
-	CloseHandle(hTimer);
 	return EXIT_SUCCESS;
 }
 DWORD WINAPI GetCarDataThread(LPVOID lpParam) {
@@ -332,10 +296,10 @@ DWORD WINAPI CloseThread(LPVOID lpParam) {
 	}
 
 	WaitForSingleObject(hEventClose, INFINITE);
-	_tprintf(TEXT("[WARNING] A Central fechou!\nA fechar a aplicação..."));
-
+	_tprintf(TEXT("\n[WARNING] A Central fechou!\n"));
 	params->exit = true;
-	_tprintf(TEXT("Cya!\n"));
+	_tprintf(TEXT("[SHUTDOWN] A Sair...\n"));
+	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 5);
 
 	FreeLibrary(hDLL);
 	CloseHandle(hEventClose);

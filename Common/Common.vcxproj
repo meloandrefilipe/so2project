@@ -145,6 +145,7 @@
     <ClCompile Include="SharedMemory.cpp" />
     <ClCompile Include="TownMap.cpp" />
     <ClCompile Include="Node.cpp" />
+    <ClCompile Include="WaitableTimer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BreadthFirstSearch.h" />
@@ -154,6 +155,7 @@
     <ClInclude Include="SharedMemory.h" />
     <ClInclude Include="TownMap.h" />
     <ClInclude Include="Node.h" />
+    <ClInclude Include="WaitableTimer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

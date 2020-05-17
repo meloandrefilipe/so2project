@@ -8,10 +8,9 @@ int _tmain(int argc, TCHAR argv[]){
 #endif
 
     DWORD idMainMenuThread, idCommunicationThread, idPlateValidatorThread;
-    HANDLE hMutexHandle, communicationThread, mainMenuThread, hTimer, plateValidatorThread;
+    HANDLE hMutexHandle, communicationThread, mainMenuThread, plateValidatorThread;
 
     PARAMETERS params;
-    LARGE_INTEGER liDueTime;
 
     TownMap* townMap = new TownMap();
 
@@ -87,32 +86,7 @@ int _tmain(int argc, TCHAR argv[]){
             _tprintf(TEXT("[PATH] %s\n"), bp.path[i]->getID());
         }
     }
-    liDueTime.QuadPart = WAIT_ONE_SECOND;
     params.exit = false;
-
- 
-
-    hTimer = CreateWaitableTimer(NULL, TRUE, NULL);
-    if (hTimer == NULL) {
-        tstringstream msg;
-        msg << "[ERRO] Não foi possivel criar o WaitableTimer!" << endl;
-        msg << "[CODE] " << GetLastError() << endl;
-        _tprintf(msg.str().c_str());
-        fLog((TCHAR*)msg.str().c_str());
-        FreeLibrary(hDLL);
-        CloseHandle(hTimer);
-        return EXIT_FAILURE;
-    }
-    if (!SetWaitableTimer(hTimer, &liDueTime, 0, NULL, NULL, 0)) {
-        tstringstream msg;
-        msg << "[ERRO] Não foi possivel iniciar o WaitableTimer!" << endl;
-        msg << "[CODE] " << GetLastError() << endl;
-        _tprintf(msg.str().c_str());
-        fLog((TCHAR*)msg.str().c_str());
-        FreeLibrary(hDLL);
-        CloseHandle(hTimer);
-        return EXIT_FAILURE;
-    }
 
     _tprintf(TEXT("CenTaxi!\n"));
 
@@ -141,19 +115,7 @@ int _tmain(int argc, TCHAR argv[]){
 
     ReleaseMutex(hMutexHandle);
     CloseHandle(hMutexHandle);
-    
 
-    if (WaitForSingleObject(hTimer, INFINITE) != WAIT_OBJECT_0) {
-        tstringstream msg;
-        msg << "[ERRO] Não foi possível iniciar o WaitForSingleObject!" << endl;
-        msg << "[CODE] " << GetLastError() << endl;
-        _tprintf(msg.str().c_str());
-        fLog((TCHAR*)msg.str().c_str());
-        FreeLibrary(hDLL);
-        CloseHandle(hTimer);
-        return EXIT_FAILURE;
-    }
-    CloseHandle(hTimer);
     FreeLibrary(hDLL);
     return EXIT_SUCCESS;
 }
@@ -178,7 +140,7 @@ DWORD WINAPI MainMenuThread(LPVOID lpParam) {
         return EXIT_FAILURE;
     }
 
-    while (true) {
+    while (!params->exit) {
         _tprintf(TEXT("COMMAND: "));
         if (fgetws(command, sizeof(command), stdin) == NULL) {
             tstringstream msg;
@@ -221,9 +183,13 @@ DWORD WINAPI MainMenuThread(LPVOID lpParam) {
             CloseHandle(sCanRead);
             CloseHandle(hEventClose);
             FreeLibrary(hDLL);
+            _tprintf(TEXT("[SHUTDOWN] A Sair...\n"));
+            WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND *  5);
+            exit(EXIT_SUCCESS);
             return EXIT_SUCCESS;
         }
     }
+    return EXIT_SUCCESS;
 }
 
 DWORD WINAPI CommunicationThread(LPVOID lpParam) {
