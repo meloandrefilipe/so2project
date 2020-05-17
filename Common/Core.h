@@ -4,12 +4,16 @@
 #include <sstream>
 #include <tchar.h>
 #include <Windows.h>
-#include "Car.h"
 
 #define SHAREDMEMORY_CEN_CON TEXT("C:\\temp\\cencon.txt")
 #define SHAREDMEMORY_CEN_CON_ZONE TEXT("SharedMemoryCenTaxiConTaxi")
+#define SHAREDMEMORY_PLATE_VALIDATION TEXT("SharedMemoryPlateValidationConTaxi")
 #define SEMAPHORE_CAN_READ_CENCON TEXT("CenConCanRead")
 #define SEMAPHORE_CAN_WRITE_CENCON TEXT("CenConCanWrite")
+#define SEMAPHORE_PLATE_VALIDATOR_READ TEXT("PlateValidatorCanRead")
+#define SEMAPHORE_PLATE_VALIDATOR_WRITE TEXT("PlateValidatorCanWrite")
+#define SEMAPHORE_PLATE_VALIDATOR_CONTAXI TEXT("PlateValidatorContaxi")
+#define EVENT_CLOSE_ALL TEXT("CloseApps")
 #define SEMAPHORE_COUNT 10
 #define WAIT_ONE_SECOND -10000000LL
 #define WAIT_TEN_SECONDS -100000000LL
@@ -33,8 +37,10 @@
 #define tstring string
 #define tstringstream ostringstream 
 #endif
+
+
 typedef int(__cdecl* FuncRegister)(TCHAR* name, int type);
-typedef int(__cdecl* FuncLog)(TCHAR* msg);
+typedef int(__cdecl* FuncLog)(TCHAR* msg); 
 
 using namespace std;
 
@@ -42,5 +48,13 @@ typedef struct SHAREDMEMORY_TAXI {
 	int row;
 	int col;
 	int pid;
-	TCHAR matricula[TAXI_PLATE_SIZE];
+	int nq;
+	float speed;
+	BOOL autopicker;
+	TCHAR plate[TAXI_PLATE_SIZE];
 }TAXI;
+
+typedef struct SHAREDMEMORY_PLATE {
+	int status;
+	TCHAR plate[TAXI_PLATE_SIZE];
+}PLATE;

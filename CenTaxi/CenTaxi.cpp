@@ -7,8 +7,8 @@ int _tmain(int argc, TCHAR argv[]){
     _setmode(_fileno(stderr), _O_WTEXT);
 #endif
 
-    DWORD threadIDArray[2];
-    HANDLE hMutexHandle, tInitMenu, tCommunication, hTimer;
+    DWORD idMainMenuThread, idCommunicationThread, idPlateValidatorThread;
+    HANDLE hMutexHandle, communicationThread, mainMenuThread, hTimer, plateValidatorThread;
 
     PARAMETERS params;
     LARGE_INTEGER liDueTime;
@@ -116,11 +116,12 @@ int _tmain(int argc, TCHAR argv[]){
 
     _tprintf(TEXT("CenTaxi!\n"));
 
-    tInitMenu = CreateThread(NULL, 0, InitMenu, &params, 0, &threadIDArray[0]);
-    tCommunication = CreateThread(NULL, 0, CommsThread, &params, 0, &threadIDArray[1]);
+    mainMenuThread = CreateThread(NULL, 0, MainMenuThread, &params, 0, &idMainMenuThread);
+    communicationThread = CreateThread(NULL, 0, CommunicationThread, &params, 0, &idCommunicationThread);
+    plateValidatorThread = CreateThread(NULL, 0, PlateValidatorThread, &params, 0, &idPlateValidatorThread);
 
 
-    if (tInitMenu == NULL || tCommunication == NULL) {
+    if (mainMenuThread == NULL || communicationThread == NULL) {
         tstringstream msg;
         msg << "[ERRO] Não foi possivel criar a Thread!" << endl;
         msg << "[CODE] " << GetLastError() << endl;
@@ -130,11 +131,13 @@ int _tmain(int argc, TCHAR argv[]){
         return EXIT_FAILURE;
     }
 
-    WaitForSingleObject(tInitMenu, INFINITE);
-    WaitForSingleObject(tCommunication, INFINITE);
+    WaitForSingleObject(mainMenuThread, INFINITE);
+    WaitForSingleObject(communicationThread, INFINITE);
+    WaitForSingleObject(plateValidatorThread, INFINITE);
 
-    CloseHandle(tInitMenu);
-    CloseHandle(tCommunication);
+    CloseHandle(mainMenuThread);
+    CloseHandle(communicationThread);
+    CloseHandle(plateValidatorThread);
 
     ReleaseMutex(hMutexHandle);
     CloseHandle(hMutexHandle);
@@ -155,7 +158,7 @@ int _tmain(int argc, TCHAR argv[]){
     return EXIT_SUCCESS;
 }
 
-DWORD WINAPI InitMenu(LPVOID lpParam) {
+DWORD WINAPI MainMenuThread(LPVOID lpParam) {
     PARAMETERS* params = (PARAMETERS*)lpParam;
     TCHAR command[COMMAND_SIZE] = TEXT("");
     HANDLE sCanRead;
@@ -189,7 +192,18 @@ DWORD WINAPI InitMenu(LPVOID lpParam) {
                 command[i] = '\0';
         }
         if (_tcscmp(command, TEXT("exit")) == 0) {
-            _tprintf(TEXT("Cya!\n"));
+
+            HANDLE hEventClose = CreateEvent(NULL, FALSE, FALSE, EVENT_CLOSE_ALL);
+
+            if (hEventClose == NULL) {
+                tstringstream msg;
+                msg << "[ERRO] Não foi possivel criar o evento!" << endl;
+                msg << "[CODE] " << GetLastError() << endl;
+                _tprintf(msg.str().c_str());
+                fLog((TCHAR*)msg.str().c_str());
+            }
+
+            SetEvent(hEventClose);
             params->exit = true;
 
             sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_CAN_READ_CENCON);
@@ -200,17 +214,19 @@ DWORD WINAPI InitMenu(LPVOID lpParam) {
                 _tprintf(msg.str().c_str());
                 fLog((TCHAR*)msg.str().c_str());
                 CloseHandle(sCanRead);
+                CloseHandle(hEventClose);
                 return EXIT_FAILURE;
             }
             ReleaseSemaphore(sCanRead, 1, NULL);
             CloseHandle(sCanRead);
+            CloseHandle(hEventClose);
             FreeLibrary(hDLL);
             return EXIT_SUCCESS;
         }
     }
 }
 
-DWORD WINAPI CommsThread(LPVOID lpParam) {
+DWORD WINAPI CommunicationThread(LPVOID lpParam) {
     TAXI * pBuf;
     HANDLE hFileMapping, hFile, sCanRead, sCanWrite;
     PARAMETERS* params = (PARAMETERS*)lpParam;
@@ -293,10 +309,11 @@ DWORD WINAPI CommsThread(LPVOID lpParam) {
     while(!params->exit){
         WaitForSingleObject(sCanRead, INFINITE);
         if (!params->exit) {
-            Car *c = new Car(pBuf->pid, pBuf->row, pBuf->col, pBuf->matricula);
+            Car *c = new Car(pBuf);
             params->cars.push_back(c);
             tstringstream msg;
             msg << "[NEW CAR] Entrou um novo taxi! Matricula: " << c->getPlate() << endl;
+            _tprintf(TEXT("\n"));
             _tprintf(msg.str().c_str());
             fLog((TCHAR*)msg.str().c_str());
             _tprintf(TEXT("COMMAND: "));
@@ -307,6 +324,120 @@ DWORD WINAPI CommsThread(LPVOID lpParam) {
     UnmapViewOfFile(pBuf);
     CloseHandle(sCanWrite);
     CloseHandle(sCanRead);
+    CloseHandle(hFile);
+    CloseHandle(hFileMapping);
+    return EXIT_SUCCESS;
+}
+
+DWORD WINAPI PlateValidatorThread(LPVOID lpParam) {
+    PLATE * pBuf;
+    PLATE p;
+    HANDLE hFileMapping, hFile, sCanRead, sCanWrite, sConTaxi;
+    PARAMETERS* params = (PARAMETERS*)lpParam;
+    HMODULE hDLL;
+    hDLL = LoadLibrary(DLL_PATH_64);
+    if (hDLL == NULL) {
+        _tprintf(TEXT("[ERRO] Não foi possivel carregar a DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
+        return EXIT_FAILURE;
+    }
+
+    FuncRegister fRegister = (FuncRegister)GetProcAddress(hDLL, "dll_register");
+    FuncLog fLog = (FuncLog)GetProcAddress(hDLL, "dll_log");
+    if (fRegister == NULL || fLog == NULL) {
+        FreeLibrary(hDLL);
+        _tprintf(TEXT("[ERRO] Não foi possivel carregar as funções da DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
+        return EXIT_FAILURE;
+    }
+
+    hFile = CreateFile(SHAREDMEMORY_CEN_CON, GENERIC_ALL, FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == NULL) {
+        tstringstream msg;
+        msg << "[ERRO] Não foi possível criar o ficheiro " << SHAREDMEMORY_CEN_CON << "!" << endl;
+        msg << "[CODE] " << GetLastError() << endl;
+        _tprintf(msg.str().c_str());
+        fLog((TCHAR*)msg.str().c_str());
+        FreeLibrary(hDLL);
+        CloseHandle(hFile);
+        return EXIT_FAILURE;
+    }
+
+    sCanWrite = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, SEMAPHORE_PLATE_VALIDATOR_WRITE);
+    sConTaxi = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_PLATE_VALIDATOR_CONTAXI);
+    sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_PLATE_VALIDATOR_READ);
+    if (sCanWrite == NULL || sCanRead == NULL || sConTaxi == NULL) {
+        tstringstream msg;
+        msg << "[ERRO] Não foi possivel criar o somafro!" << endl;
+        msg << "[CODE] " << GetLastError() << endl;
+        _tprintf(msg.str().c_str());
+        fLog((TCHAR*)msg.str().c_str());
+        FreeLibrary(hDLL);
+        CloseHandle(sCanWrite);
+        CloseHandle(sCanRead);
+        CloseHandle(sConTaxi);
+        CloseHandle(hFile);
+        return EXIT_FAILURE;
+    }
+
+    fRegister((TCHAR*)SEMAPHORE_PLATE_VALIDATOR_READ, 3);
+    fRegister((TCHAR*)SEMAPHORE_PLATE_VALIDATOR_WRITE, 3);
+    fRegister((TCHAR*)SEMAPHORE_PLATE_VALIDATOR_CONTAXI, 3);
+
+    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, BUFFER_SIZE, SHAREDMEMORY_PLATE_VALIDATION);
+    if (hFileMapping == NULL) {
+        tstringstream msg;
+        msg << "[ERRO] Não foi possivel criar o file mapping!" << endl;
+        msg << "[CODE] " << GetLastError() << endl;
+        _tprintf(msg.str().c_str());
+        fLog((TCHAR*)msg.str().c_str());
+        FreeLibrary(hDLL);
+        CloseHandle(sCanWrite);
+        CloseHandle(sCanRead);
+        CloseHandle(sConTaxi);
+        CloseHandle(hFile);
+        CloseHandle(hFileMapping);
+        return EXIT_FAILURE;
+    }
+
+    pBuf = (PLATE *)MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(PLATE));
+    if (pBuf == NULL) {
+        tstringstream msg;
+        msg << "[ERRO] Não foi possivel mapear o ficheiro!" << endl;
+        msg << "[CODE] " << GetLastError() << endl;
+        _tprintf(msg.str().c_str());
+        fLog((TCHAR*)msg.str().c_str());
+        FreeLibrary(hDLL);
+        CloseHandle(sCanWrite);
+        CloseHandle(sCanRead);
+        CloseHandle(sConTaxi);
+        CloseHandle(hFile);
+        CloseHandle(hFileMapping);
+        return EXIT_FAILURE;
+    }
+
+    fRegister((TCHAR*)SHAREDMEMORY_PLATE_VALIDATION, 7);
+
+    while (!params->exit) {
+        WaitForSingleObject(sCanRead, INFINITE);
+        _tcscpy_s(p.plate, TAXI_PLATE_SIZE, pBuf->plate);
+        if (!params->exit) {
+            p.status = 0;
+            for (int i = 0; i < params->cars.size(); i++)
+            {
+                if (params->cars[i]->isSamePlate(p.plate)) {
+                    p.status = 1;
+                    break;
+                }
+            }
+            CopyMemory(pBuf, &p, sizeof(PLATE));
+            ReleaseSemaphore(sConTaxi, 1, NULL);
+            ReleaseSemaphore(sCanWrite, 1, NULL);
+        }
+    }
+    FreeLibrary(hDLL);
+    UnmapViewOfFile(pBuf);
+    CloseHandle(sCanWrite);
+    CloseHandle(sCanRead);
+    CloseHandle(sConTaxi);
     CloseHandle(hFile);
     CloseHandle(hFileMapping);
     return EXIT_SUCCESS;

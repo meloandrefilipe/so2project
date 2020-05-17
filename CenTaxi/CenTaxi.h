@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <vector>
 #include <io.h>
+#include <Car.h>
 #include "BreadthFirstSearch.h"
 
 
@@ -15,8 +16,9 @@ using namespace std;
 
 
 // Threads
-DWORD WINAPI InitMenu(LPVOID lpParam);
-DWORD WINAPI CommsThread(LPVOID lpParam);
+DWORD WINAPI MainMenuThread(LPVOID lpParam);
+DWORD WINAPI CommunicationThread(LPVOID lpParam);
+DWORD WINAPI PlateValidatorThread(LPVOID lpParam);
 
 // Structs
 typedef struct THREAD_PARAMETERS {

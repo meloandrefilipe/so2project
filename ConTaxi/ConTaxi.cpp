@@ -1,4 +1,5 @@
 #include "ConTaxi.h"
+#include "Cooms.h"
 
 int _tmain(int argc ,TCHAR* argv[]) {
 
@@ -9,8 +10,8 @@ int _tmain(int argc ,TCHAR* argv[]) {
 #endif
 	HANDLE hTimer;
 	LARGE_INTEGER liDueTime;
-	DWORD ThreadIDArray[2];
-	HANDLE CommandsThread, CommunicationThread;
+	DWORD idCommandsThread, idCommunicationThread, idCloseThread, idGetCarDataThread;
+	HANDLE commandsThread, communicationThread, closeThread, getCarDataThread;
 	PARAMETERS params; 
 	HMODULE hDLL;
 
@@ -23,12 +24,14 @@ int _tmain(int argc ,TCHAR* argv[]) {
 	FuncRegister fRegister = (FuncRegister)GetProcAddress(hDLL, "dll_register");
 	FuncLog fLog = (FuncLog)GetProcAddress(hDLL, "dll_log");
 
+	if (fRegister == NULL || fLog == NULL) {
+		_tprintf(TEXT("[ERRO] Não foi possivel carregar as funções da DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
+		return EXIT_FAILURE;
+	}
 	liDueTime.QuadPart = WAIT_ONE_SECOND;
 
-	Car car = getCarData();
-	params.car = &car;
 	params.exit = false;
-
+	
 	hTimer = CreateWaitableTimer(NULL, TRUE, NULL);
 	if (hTimer == NULL) {
 		tstringstream msg;
@@ -51,10 +54,14 @@ int _tmain(int argc ,TCHAR* argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	CommandsThread = CreateThread(NULL, 0, CmdsThread, &params, 0, &ThreadIDArray[0]);
-	CommunicationThread = CreateThread(NULL, 0, CommsThread, &params, 0, &ThreadIDArray[1]);
+	getCarDataThread = CreateThread(NULL, 0, GetCarDataThread, &params, 0, &idGetCarDataThread);
+	closeThread = CreateThread(NULL, 0, CloseThread, &params, 0, &idCloseThread);
+	WaitForSingleObject(getCarDataThread, INFINITE);
+	commandsThread = CreateThread(NULL, 0, CommandsThread, &params, 0, &idCommandsThread);
+	communicationThread = CreateThread(NULL, 0, CommunicationThread, &params, 0, &idCommunicationThread);
 
-	if (CommandsThread == NULL || CommunicationThread == NULL) {
+
+	if (commandsThread == NULL || communicationThread == NULL || closeThread == NULL) {
 		tstringstream msg;
 		msg << "[ERRO] Não foi possivel criar a Thread!" << endl;
 		msg << "[CODE] " << GetLastError() << endl;
@@ -64,10 +71,15 @@ int _tmain(int argc ,TCHAR* argv[]) {
 		return EXIT_FAILURE;
 	}
 	
-	WaitForSingleObject(CommandsThread, INFINITE);
-	WaitForSingleObject(CommunicationThread, INFINITE);
-	CloseHandle(CommandsThread);
-	CloseHandle(CommunicationThread);
+	WaitForSingleObject(commandsThread, INFINITE);
+	WaitForSingleObject(communicationThread, INFINITE);
+	WaitForSingleObject(closeThread, INFINITE);
+
+	CloseHandle(getCarDataThread);
+	CloseHandle(commandsThread);
+	CloseHandle(closeThread);
+	CloseHandle(communicationThread);
+	_tprintf(TEXT("Cya!\n"));
 
 	if (WaitForSingleObject(hTimer, INFINITE) != WAIT_OBJECT_0) {
 		tstringstream msg;
@@ -79,20 +91,37 @@ int _tmain(int argc ,TCHAR* argv[]) {
 		FreeLibrary(hDLL);
 		return EXIT_FAILURE;
 	}
+
 	FreeLibrary(hDLL);
 	CloseHandle(hTimer);
 	return EXIT_SUCCESS;
 }
-
-Car getCarData() {
-	int row, col;
+DWORD WINAPI GetCarDataThread(LPVOID lpParam) {
+	PARAMETERS* params = (PARAMETERS*)lpParam;
+	int row = 0; 
+	int col = 0;
 	TCHAR plate[TAXI_PLATE_SIZE] = TEXT("XX XX XX");
 
-	_tprintf(TEXT("Indique as coordenadas do seu veículo!\n"));
-
+	_tprintf(TEXT("Indique a matrícula do seu veículo : "));
+	int validate = 0;
+	do {
+		if (validate == 1) {
+			_tprintf(TEXT("Esta matricula já se encontra no nosso sistema, coloque outra: "));
+		}
+		if (fgetws(plate, sizeof(plate), stdin) == NULL) {
+			_tprintf(TEXT("[ERRO] Ocorreu um erro a ler a matrícula\n[CODE] %d\n"), GetLastError());
+		}
+		for (int i = 0; i < sizeof(plate) && plate[i]; i++)
+		{
+			if (plate[i] == '\n')
+				plate[i] = '\0';
+		}
+		validate = validatePlate(plate);
+	} while (validate != 0);
 	
-	while (true) {
-		_tprintf(TEXT("X: "));
+	
+	while (!params->exit) {
+		_tprintf(TEXT("Indique a coordenada X: "));
 		wcin >> col;
 		if (wcin.fail()) {
 			_tprintf(TEXT("Insira um valor inteiro para a coordenada!\n"));
@@ -103,8 +132,8 @@ Car getCarData() {
 		else break;
 	}
 
-	while (true) {
-		_tprintf(TEXT("Y: "));
+	while (!params->exit) {
+		_tprintf(TEXT("Indique a coordenada Y: "));
 		wcin >> row;
 		if (wcin.fail()) {
 			_tprintf(TEXT("Insira um valor inteiro para a coordenada!\n"));
@@ -116,21 +145,14 @@ Car getCarData() {
 	}
 	wcin.clear();
 	wcin.ignore(256, '\n');
-	_tprintf(TEXT("Matricula: "));
-	if (fgetws(plate, sizeof(plate), stdin) == NULL) {
-		_tprintf(TEXT("[ERRO] Ocorreu um erro a ler a matricula\n[CODE] %d\n"),GetLastError());
-	}
-	for (int i = 0; i < sizeof(plate) && plate[i]; i++)
-	{
-		if (plate[i] == '\n')
-			plate[i] = '\0';
-	}
-
-	return 	Car(GetCurrentProcessId(), row, col, plate);
+	params->car = new Car(GetCurrentProcessId(), row, col, plate);
+	return EXIT_SUCCESS;
 }
 
-DWORD WINAPI CmdsThread(LPVOID lpParam) {
+DWORD WINAPI CommandsThread(LPVOID lpParam) {
 	TCHAR command[COMMAND_SIZE] = TEXT("");
+	TCHAR* pch;
+	TCHAR* something;
 	PARAMETERS* params = (PARAMETERS*)lpParam;
 	HMODULE hDLL;
 
@@ -142,11 +164,11 @@ DWORD WINAPI CmdsThread(LPVOID lpParam) {
 
 	FuncRegister fRegister = (FuncRegister)GetProcAddress(hDLL, "dll_register");
 	FuncLog fLog = (FuncLog)GetProcAddress(hDLL, "dll_log");
-	while (true) {
+	while (!params->exit) {
 		_tprintf(TEXT("COMMAND: "));
 		if (fgetws(command, sizeof(command), stdin) == NULL) {
 			tstringstream msg;
-			msg << "[ERRO] [ERRO] Ocorreu um erro a ler o comando inserido!" << endl;
+			msg << "[ERRO] Ocorreu um erro a ler o comando inserido!" << endl;
 			msg << "[CODE] " << GetLastError() << endl;
 			_tprintf(msg.str().c_str());
 			fLog((TCHAR*)msg.str().c_str());
@@ -156,22 +178,140 @@ DWORD WINAPI CmdsThread(LPVOID lpParam) {
 			if (command[i] == '\n')
 				command[i] = '\0';
 		}
-		if (_tcscmp(command, TEXT("exit")) == 0) {
-			_tprintf(TEXT("Cya!\n"));
+		pch = _tcstok_s(command, TEXT(" "), &something);
+		if (_tcscmp(pch, TEXT("exit")) == 0) {
+			HANDLE hEventClose = CreateEvent(NULL, FALSE, FALSE, EVENT_CLOSE_ALL);
+
+			if (hEventClose == NULL) {
+				tstringstream msg;
+				msg << "[ERRO] Não foi possivel criar o evento!" << endl;
+				msg << "[CODE] " << GetLastError() << endl;
+				_tprintf(msg.str().c_str());
+				fLog((TCHAR*)msg.str().c_str());
+			}
+
+			SetEvent(hEventClose);
 			params->exit = true;
 			FreeLibrary(hDLL);
+			CloseHandle(hEventClose);
 			return EXIT_SUCCESS;
 		}
+		else if (_tcscmp(pch, TEXT("acelerar")) == 0) {
+			params->car->speedUp();
+		}
+		else if (_tcscmp(pch, TEXT("desacelerar")) == 0) {
+			params->car->speedDown();
+		}
+		else if (_tcscmp(pch, TEXT("nq")) == 0) {
+
+			pch = _tcstok_s(something, TEXT(" "), &something);
+
+			int val = NQ;
+
+			try {
+				val = stoi(pch);
+			}
+			catch (invalid_argument) {
+				tstringstream msg;
+				msg << "[ERRO] Valor inválido!" << endl;
+				msg << "[CODE] " << GetLastError() << endl;
+				_tprintf(msg.str().c_str());
+				fLog((TCHAR*)msg.str().c_str());
+				continue;
+			}
+			catch (out_of_range) {
+				tstringstream msg;
+				msg << "[ERRO] Este valor não é muito grande?" << endl;
+				msg << "[CODE] " << GetLastError() << endl;
+				_tprintf(msg.str().c_str());
+				fLog((TCHAR*)msg.str().c_str());
+				continue;
+			}
+			params->car->setNq(val);
+		}
+		else if (_tcscmp(pch, TEXT("autopicker")) == 0) {
+
+			pch = _tcstok_s(something, TEXT(" "), &something);
+
+			if (_tcscmp(pch, TEXT("on")) == 0) {
+				params->car->setAutopicker(true);
+				tstringstream msg;
+				msg << "[AUTOPICKER] Ativado!" << endl;
+				_tprintf(msg.str().c_str());
+				fLog((TCHAR*)msg.str().c_str());
+
+			}
+			else if (_tcscmp(pch, TEXT("off")) == 0) {
+				params->car->setAutopicker(false);
+				tstringstream msg;
+				msg << "[AUTOPICKER] Desativado!" << endl;
+				_tprintf(msg.str().c_str());
+				fLog((TCHAR*)msg.str().c_str());
+			}
+			else {
+				tstringstream msg;
+				msg << "[WARNING] A Opção inserida não existe!" << endl;
+				_tprintf(msg.str().c_str());
+				fLog((TCHAR*)msg.str().c_str());
+				continue;
+			}
+		}
+		else if (_tcscmp(pch, TEXT("transportar")) == 0) {
+
+			pch = _tcstok_s(something, TEXT(" "), &something);
+
+			int traveler = 0;
+
+			try {
+				traveler = stoi(pch);
+			}
+			catch (invalid_argument) {
+				tstringstream msg;
+				msg << "[ERRO] Valor inválido!" << endl;
+				msg << "[CODE] " << GetLastError() << endl;
+				_tprintf(msg.str().c_str());
+				fLog((TCHAR*)msg.str().c_str());
+				continue;
+			}
+			catch (out_of_range) {
+				tstringstream msg;
+				msg << "[ERRO] Este valor não é muito grande?" << endl;
+				msg << "[CODE] " << GetLastError() << endl;
+				_tprintf(msg.str().c_str());
+				fLog((TCHAR*)msg.str().c_str());
+				continue;
+			}
+			tstringstream msg;
+			msg << "[PASSENGER] Vou até ao passageiro #%d" << traveler << endl;
+			msg << "[CODE] " << GetLastError() << endl;
+			_tprintf(msg.str().c_str());
+			fLog((TCHAR*)msg.str().c_str());
+
+
+			// IMPLEMENTAR CODIGO DE TRANSPORTE DO PASSAGEIRO
+		}
+		else {
+			tstringstream msg;
+			msg << "[WARNING] O comando inserido não existe!" << endl;
+			_tprintf(msg.str().c_str());
+			fLog((TCHAR*)msg.str().c_str());
+		}
 	}
+	return EXIT_SUCCESS;
 }
 
-DWORD WINAPI CommsThread(LPVOID lpParam) {
+DWORD WINAPI CommunicationThread(LPVOID lpParam) {
 	
-	HANDLE hFileMapping, sCanRead, sCanWrite;
 	PARAMETERS *params = (PARAMETERS*)lpParam;
-	TAXI* pBuf;
-	TAXI taxi;
+
+	return SendCar(params->car);
+}
+
+DWORD WINAPI CloseThread(LPVOID lpParam) {
+
+	PARAMETERS* params = (PARAMETERS*)lpParam;
 	HMODULE hDLL;
+	HANDLE hEventClose;
 
 	hDLL = LoadLibrary(DLL_PATH_64);
 	if (hDLL == NULL) {
@@ -182,61 +322,23 @@ DWORD WINAPI CommsThread(LPVOID lpParam) {
 	FuncRegister fRegister = (FuncRegister)GetProcAddress(hDLL, "dll_register");
 	FuncLog fLog = (FuncLog)GetProcAddress(hDLL, "dll_log");
 
-	sCanWrite = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, SEMAPHORE_CAN_WRITE_CENCON);
-	sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_CAN_READ_CENCON);
-	if (sCanWrite == NULL || sCanRead == NULL) {
+	hEventClose = CreateEvent(NULL, FALSE, FALSE, EVENT_CLOSE_ALL);
+	if (hEventClose == NULL) {
 		tstringstream msg;
-		msg << "[ERRO] Não foi possivel criar o somafro!" << endl;
+		msg << "[ERRO] Não foi possivel criar o evento!" << endl;
 		msg << "[CODE] " << GetLastError() << endl;
 		_tprintf(msg.str().c_str());
 		fLog((TCHAR*)msg.str().c_str());
-		CloseHandle(sCanWrite);
-		CloseHandle(sCanRead);
-		FreeLibrary(hDLL);
-		return EXIT_FAILURE;
 	}
-	fRegister((TCHAR*)SEMAPHORE_CAN_WRITE_CENCON, 3);
-	fRegister((TCHAR*)SEMAPHORE_CAN_READ_CENCON, 3);
-	hFileMapping = OpenFileMapping(FILE_MAP_ALL_ACCESS,FALSE, SHAREDMEMORY_CEN_CON_ZONE);
 
-	if (hFileMapping == NULL) {
-		tstringstream msg;
-		msg << "[ERRO] Não foi possivel criar o file mapping!" << endl;
-		msg << "[CODE] " << GetLastError() << endl;
-		_tprintf(msg.str().c_str());
-		fLog((TCHAR*)msg.str().c_str());
-		CloseHandle(sCanWrite);
-		CloseHandle(sCanRead);
-		CloseHandle(hFileMapping);
-		FreeLibrary(hDLL);
-		return EXIT_FAILURE;
-	}
-	pBuf = (TAXI*)MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(TAXI));
-	if (pBuf == NULL) {
-		tstringstream msg;
-		msg << "[ERRO] Não foi possivel mapear o ficheiro!" << endl;
-		msg << "[CODE] " << GetLastError() << endl;
-		_tprintf(msg.str().c_str());
-		fLog((TCHAR*)msg.str().c_str());
-		CloseHandle(sCanWrite);
-		CloseHandle(sCanRead);
-		CloseHandle(hFileMapping);
-		FreeLibrary(hDLL);
-		return EXIT_FAILURE;
-	}
-	fRegister((TCHAR*)SHAREDMEMORY_CEN_CON_ZONE, 7);
+	WaitForSingleObject(hEventClose, INFINITE);
+	_tprintf(TEXT("[WARNING] A Central fechou!\nA fechar a aplicação..."));
 
-	WaitForSingleObject(sCanWrite, INFINITE);
-	taxi.col = params->car->getCol();
-	taxi.row = params->car->getRow();
-	taxi.pid = params->car->getId();
-	_stprintf_s(taxi.matricula, TEXT("%s"), params->car->getPlate());
-	CopyMemory((TAXI*)pBuf, &taxi, sizeof(TAXI));
-	ReleaseSemaphore(sCanRead, 1, NULL);
+	params->exit = true;
+	_tprintf(TEXT("Cya!\n"));
+
 	FreeLibrary(hDLL);
-	CloseHandle(sCanWrite);
-	CloseHandle(sCanRead);
-	UnmapViewOfFile(pBuf);
-	CloseHandle(hFileMapping);
+	CloseHandle(hEventClose);
+	exit(EXIT_SUCCESS);
 	return EXIT_SUCCESS;
 }

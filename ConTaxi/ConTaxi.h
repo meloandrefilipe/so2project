@@ -5,9 +5,8 @@
 #include <strsafe.h>
 #include <fcntl.h>
 #include <io.h>
+#include <Car.h>
 #include "BreadthFirstSearch.h"
-
-
 
 using namespace std;
 
@@ -21,8 +20,9 @@ typedef struct THREAD_PARAMETERS {
 }PARAMETERS;
 
 // Threads
-DWORD WINAPI CmdsThread(LPVOID lpParam);
-DWORD WINAPI CommsThread(LPVOID lpParam);
+DWORD WINAPI CommandsThread(LPVOID lpParam);
+DWORD WINAPI CommunicationThread(LPVOID lpParam);
+DWORD WINAPI CloseThread(LPVOID lpParam);
+DWORD WINAPI GetCarDataThread(LPVOID lpParam);
 
 // Functions
-Car getCarData();
