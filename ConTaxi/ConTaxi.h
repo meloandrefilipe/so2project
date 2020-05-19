@@ -5,9 +5,8 @@
 #include <strsafe.h>
 #include <fcntl.h>
 #include <io.h>
-#include <Car.h>
-#include "BreadthFirstSearch.h"
-#include "WaitableTimer.h"
+#include "Cooms.h"
+
 
 using namespace std;
 
@@ -25,5 +24,7 @@ DWORD WINAPI CommandsThread(LPVOID lpParam);
 DWORD WINAPI CommunicationThread(LPVOID lpParam);
 DWORD WINAPI CloseThread(LPVOID lpParam);
 DWORD WINAPI GetCarDataThread(LPVOID lpParam);
+DWORD WINAPI GetMapThread(LPVOID lpParam);
+DWORD WINAPI MoveCarThread(LPVOID lpParam);
 
 // Functions

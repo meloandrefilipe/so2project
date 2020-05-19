@@ -1,52 +1,27 @@
 #include "CenTaxi.h"
 
 int _tmain(int argc, TCHAR argv[]){
+
 #ifdef UNICODE
     _setmode(_fileno(stdin), _O_WTEXT);
     _setmode(_fileno(stdout), _O_WTEXT);
     _setmode(_fileno(stderr), _O_WTEXT);
 #endif
 
-    DWORD idMainMenuThread, idCommunicationThread, idPlateValidatorThread;
-    HANDLE hMutexHandle, communicationThread, mainMenuThread, plateValidatorThread;
+    DWORD idMainMenuThread, idCommunicationThread, idPlateValidatorThread, idSendMapThread, idSendMapInfoThread;
+    HANDLE hMutexHandle, communicationThread, mainMenuThread, plateValidatorThread, sendMapThread, sendMapInfoThread;
 
-    PARAMETERS params;
-
-    TownMap* townMap = new TownMap();
-
-    Node* dest = NULL;
-    Node* src = NULL;
-    vector<Node*> nodes = townMap->getNodes();
-
-    HMODULE hDLL;
-    hDLL = LoadLibrary(DLL_PATH_64);
-    if (hDLL == NULL) {
-        _tprintf(TEXT("[ERRO] Não foi possivel carregar a DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
-        return EXIT_FAILURE;
-    }
-
-    FuncRegister fRegister = (FuncRegister)GetProcAddress(hDLL, "dll_register");
-    FuncLog fLog = (FuncLog)GetProcAddress(hDLL, "dll_log");
-
-    if (fRegister == NULL || fLog == NULL) {
-        _tprintf(TEXT("[ERRO] Não foi possivel carregar as funções da DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
-        FreeLibrary(hDLL);
-        return EXIT_FAILURE;
-    }
+    Central* central = new Central();
+    DLLProfessores* dll = new DLLProfessores();
 
     // Criar um named mutex para garantir que existe apenas uma CenTaxi a correr no sistema
     hMutexHandle = CreateMutex(NULL, TRUE, CENTAXI_MAIN_MUTEX);
-
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        tstringstream msg;
-        msg << "[ERRO] Aplicação já a correr!" << endl;
-        msg << "[CODE] " << GetLastError() << endl;
-        _tprintf(msg.str().c_str());
-        fLog((TCHAR *)msg.str().c_str());
-        FreeLibrary(hDLL);
+        dll->log((TCHAR*)TEXT("Aplicação já a correr"), TYPE::ERRO);
+        delete dll;
         return EXIT_FAILURE;
     }
-    fRegister((TCHAR*)CENTAXI_MAIN_MUTEX, 1);
+    dll->regist((TCHAR*)CENTAXI_MAIN_MUTEX, 1);
 
 
   /*  for (int i = 0; i < nodes.size(); i++)
@@ -83,68 +58,48 @@ int _tmain(int argc, TCHAR argv[]){
     //}
 
 
-    params.exit = false;
 
     _tprintf(TEXT("CenTaxi!\n"));
+    sendMapThread = CreateThread(NULL, 0, SendMapThread, central, 0, &idSendMapThread);
+    sendMapInfoThread = CreateThread(NULL, 0, SendMapInfoThread, central, 0, &idSendMapInfoThread);
+    mainMenuThread = CreateThread(NULL, 0, MainMenuThread, central, 0, &idMainMenuThread);
+    communicationThread = CreateThread(NULL, 0, CommunicationThread, central, 0, &idCommunicationThread);
+    plateValidatorThread = CreateThread(NULL, 0, PlateValidatorThread, central, 0, &idPlateValidatorThread);
 
-    mainMenuThread = CreateThread(NULL, 0, MainMenuThread, &params, 0, &idMainMenuThread);
-    communicationThread = CreateThread(NULL, 0, CommunicationThread, &params, 0, &idCommunicationThread);
-    plateValidatorThread = CreateThread(NULL, 0, PlateValidatorThread, &params, 0, &idPlateValidatorThread);
 
-
-    if (mainMenuThread == NULL || communicationThread == NULL) {
-        tstringstream msg;
-        msg << "[ERRO] Não foi possivel criar a Thread!" << endl;
-        msg << "[CODE] " << GetLastError() << endl;
-        _tprintf(msg.str().c_str());
-        fLog((TCHAR*)msg.str().c_str());
-        FreeLibrary(hDLL);
+    if (mainMenuThread == NULL || communicationThread == NULL || sendMapThread == NULL || plateValidatorThread == NULL) {
+        dll->log((TCHAR*)TEXT("Não foi possivel criar a Thread!"), TYPE::ERRO);
+        delete dll;
         return EXIT_FAILURE;
     }
 
     WaitForSingleObject(mainMenuThread, INFINITE);
     WaitForSingleObject(communicationThread, INFINITE);
     WaitForSingleObject(plateValidatorThread, INFINITE);
+    WaitForSingleObject(sendMapThread, INFINITE);
 
     CloseHandle(mainMenuThread);
     CloseHandle(communicationThread);
     CloseHandle(plateValidatorThread);
+    CloseHandle(sendMapThread);
 
     ReleaseMutex(hMutexHandle);
     CloseHandle(hMutexHandle);
+    delete dll;
 
-    FreeLibrary(hDLL);
     return EXIT_SUCCESS;
 }
 
 DWORD WINAPI MainMenuThread(LPVOID lpParam) {
-    PARAMETERS* params = (PARAMETERS*)lpParam;
+    Central* central = (Central*)lpParam;
     TCHAR command[COMMAND_SIZE] = TEXT("");
     HANDLE sCanRead;
-    HMODULE hDLL;
-    hDLL = LoadLibrary(DLL_PATH_64);
-    if (hDLL == NULL) {
-        _tprintf(TEXT("[ERRO] Não foi possivel carregar a DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
-        return EXIT_FAILURE;
-    }
+    DLLProfessores* dll = new DLLProfessores();
 
-    FuncRegister fRegister = (FuncRegister)GetProcAddress(hDLL, "dll_register");
-    FuncLog fLog = (FuncLog)GetProcAddress(hDLL, "dll_log");
-
-    if (fRegister == NULL || fLog == NULL) {
-        FreeLibrary(hDLL);
-        _tprintf(TEXT("[ERRO] Não foi possivel carregar as funções da DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
-        return EXIT_FAILURE;
-    }
-
-    while (!params->exit) {
+    while (!central->isExit()) {
         _tprintf(TEXT("COMMAND: "));
         if (fgetws(command, sizeof(command), stdin) == NULL) {
-            tstringstream msg;
-            msg << "[ERRO] Ocorreu um erro a ler o comando inserido!" << endl;
-            msg << "[CODE] " << GetLastError() << endl;
-            _tprintf(msg.str().c_str());
-            fLog((TCHAR*)msg.str().c_str());
+            dll->log((TCHAR *)TEXT("Ocorreu um erro a ler o comando inserido!"), TYPE::ERRO);
         }
         for (int i = 0; i < sizeof(command) && command[i]; i++){
             if (command[i] == '\n')
@@ -152,26 +107,18 @@ DWORD WINAPI MainMenuThread(LPVOID lpParam) {
         }
         if (_tcscmp(command, TEXT("exit")) == 0) {
 
-            HANDLE hEventClose = CreateEvent(NULL, FALSE, FALSE, EVENT_CLOSE_ALL);
-
+            HANDLE hEventClose = CreateEvent(NULL, TRUE, FALSE, EVENT_CLOSE_ALL);
             if (hEventClose == NULL) {
-                tstringstream msg;
-                msg << "[ERRO] Não foi possivel criar o evento!" << endl;
-                msg << "[CODE] " << GetLastError() << endl;
-                _tprintf(msg.str().c_str());
-                fLog((TCHAR*)msg.str().c_str());
+                dll->log((TCHAR*)TEXT("Não foi possivel criar o evento para encerrar!"), TYPE::ERRO);
+                return EXIT_FAILURE;
             }
-
             SetEvent(hEventClose);
-            params->exit = true;
+            central->setExit(true);
 
             sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_CAN_READ_CENCON);
             if (sCanRead == NULL) {
-                tstringstream msg;
-                msg << "[ERRO] Não foi possivel criar o somafro!" << endl;
-                msg << "[CODE] " << GetLastError() << endl;
-                _tprintf(msg.str().c_str());
-                fLog((TCHAR*)msg.str().c_str());
+                dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanRead Menu!"), TYPE::ERRO);
+                delete dll;
                 CloseHandle(sCanRead);
                 CloseHandle(hEventClose);
                 return EXIT_FAILURE;
@@ -179,11 +126,10 @@ DWORD WINAPI MainMenuThread(LPVOID lpParam) {
             ReleaseSemaphore(sCanRead, 1, NULL);
             CloseHandle(sCanRead);
             CloseHandle(hEventClose);
-            FreeLibrary(hDLL);
+            delete dll;
             _tprintf(TEXT("[SHUTDOWN] A Sair...\n"));
-            WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND *  5);
+            WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 5);
             exit(EXIT_SUCCESS);
-            return EXIT_SUCCESS;
         }
     }
     return EXIT_SUCCESS;
@@ -191,103 +137,89 @@ DWORD WINAPI MainMenuThread(LPVOID lpParam) {
 
 DWORD WINAPI CommunicationThread(LPVOID lpParam) {
     TAXI * pBuf;
-    HANDLE hFileMapping, hFile, sCanRead, sCanWrite;
-    PARAMETERS* params = (PARAMETERS*)lpParam;
-    HMODULE hDLL;
-    hDLL = LoadLibrary(DLL_PATH_64);
-    if (hDLL == NULL) {
-        _tprintf(TEXT("[ERRO] Não foi possivel carregar a DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
-        return EXIT_FAILURE;
-    }
+    HANDLE hFileMapping, hFile, sCanRead, sCanWrite, sConTaxi;
+    Central* central = (Central*)lpParam;
+    DLLProfessores* dll = new DLLProfessores();
 
-    FuncRegister fRegister = (FuncRegister)GetProcAddress(hDLL, "dll_register");
-    FuncLog fLog = (FuncLog)GetProcAddress(hDLL, "dll_log");
 
-    if (fRegister == NULL || fLog == NULL) {
-        FreeLibrary(hDLL);
-        _tprintf(TEXT("[ERRO] Não foi possivel carregar as funções da DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
-        return EXIT_FAILURE;
-    }
     hFile = CreateFile(SHAREDMEMORY_CEN_CON, GENERIC_ALL, FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == NULL) {
-        tstringstream msg;
-        msg << "[ERRO] Não foi possível criar o ficheiro " << SHAREDMEMORY_CEN_CON <<"!"<< endl;
-        msg << "[CODE] " << GetLastError() << endl;
-        _tprintf(msg.str().c_str());
-        fLog((TCHAR*)msg.str().c_str());
-        FreeLibrary(hDLL);
+        dll->log((TCHAR*)TEXT("Não foi possível criar o ficheiro de memoria Centaxi-Contaxi!"), TYPE::ERRO);
+        delete dll;
         CloseHandle(hFile);
         return EXIT_FAILURE;
     }
 
     sCanWrite = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, SEMAPHORE_CAN_WRITE_CENCON);
     sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_CAN_READ_CENCON);
-    if (sCanWrite == NULL || sCanRead == NULL) {
-        tstringstream msg;
-        msg << "[ERRO] Não foi possivel criar o somafro!" << endl;
-        msg << "[CODE] " << GetLastError() << endl;
-        _tprintf(msg.str().c_str());
-        fLog((TCHAR*)msg.str().c_str());
-        FreeLibrary(hDLL);
+    sConTaxi = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_CAN_CONTAXI_CENCON);
+
+    if (sCanWrite == NULL || sCanRead == NULL || sConTaxi == NULL) {
+        dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead Comunicação!"), TYPE::ERRO);
+        delete dll;
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
+        CloseHandle(sConTaxi);
         CloseHandle(hFile);
         return EXIT_FAILURE;
     }
-    fRegister((TCHAR*)SEMAPHORE_CAN_WRITE_CENCON, 3);
-    fRegister((TCHAR*)SEMAPHORE_CAN_READ_CENCON, 3);
+    dll->regist((TCHAR*)SEMAPHORE_CAN_WRITE_CENCON, 3);
+    dll->regist((TCHAR*)SEMAPHORE_CAN_READ_CENCON, 3);
+    dll->regist((TCHAR*)SEMAPHORE_CAN_CONTAXI_CENCON, 3);
 
     hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, BUFFER_SIZE, SHAREDMEMORY_CEN_CON_ZONE);
     
 
     if (hFileMapping == NULL) {
-        tstringstream msg;
-        msg << "[ERRO] Não foi possivel criar o file mapping!" << endl;
-        msg << "[CODE] " << GetLastError() << endl;
-        _tprintf(msg.str().c_str());
-        fLog((TCHAR*)msg.str().c_str());
-        FreeLibrary(hDLL);
+        dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping!"), TYPE::ERRO);
+        delete dll;
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(hFile);
+        CloseHandle(sConTaxi);
         CloseHandle(hFileMapping);
         return EXIT_FAILURE;
     }
     pBuf = (TAXI*) MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(TAXI));
     if (pBuf == NULL) {
-        tstringstream msg;
-        msg << "[ERRO] Não foi possivel mapear o ficheiro!" << endl;
-        msg << "[CODE] " << GetLastError() << endl;
-        _tprintf(msg.str().c_str());
-        fLog((TCHAR*)msg.str().c_str());
-        FreeLibrary(hDLL);
+        dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
+        delete dll;
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(hFile);
+        CloseHandle(sConTaxi);
         CloseHandle(hFileMapping);
         return EXIT_FAILURE;
     } 
-    fRegister((TCHAR*)SHAREDMEMORY_CEN_CON_ZONE, 7);
+    dll->regist((TCHAR*)SHAREDMEMORY_CEN_CON_ZONE, 7);
 
-    while(!params->exit){
+    while(!central->isExit()){
         WaitForSingleObject(sCanRead, INFINITE);
-        if (!params->exit) {
-            Car *c = new Car(pBuf);
-            params->cars.push_back(c);
-            tstringstream msg;
-            msg << "[NEW CAR] Entrou um novo taxi! Matricula: " << c->getPlate() << endl;
-            _tprintf(TEXT("\n"));
-            _tprintf(msg.str().c_str());
-            fLog((TCHAR*)msg.str().c_str());
-            _tprintf(TEXT("COMMAND: "));
-            ReleaseSemaphore(sCanWrite, 1, NULL);
+        if (!central->isExit()) {
+            if (!central->carExists(pBuf)) {
+                Car* c = new Car(pBuf);
+                central->addCar(c);
+                tstringstream msg;
+                msg << "\n[NEW CAR] Entrou um novo taxi! Matricula: " << c->getPlate() << endl;
+                _tprintf(msg.str().c_str());
+                _tprintf(TEXT("\nCOMMAND: "));
+            }
+            else {
+                central->updateCar(pBuf);
+            }
+            _tcscpy_s(pBuf->map, MAP_SHARE_SIZE, central->getCleanMap());
+            CopyMemory(pBuf, pBuf, sizeof(MAP_SHARE_SIZE));
+            ReleaseSemaphore(sConTaxi, 1, NULL);
+
+            //ReleaseSemaphore(sCanWrite, 1, NULL);
         }
     }
-    FreeLibrary(hDLL);
+    delete dll;
     UnmapViewOfFile(pBuf);
     CloseHandle(sCanWrite);
     CloseHandle(sCanRead);
     CloseHandle(hFile);
+    CloseHandle(sConTaxi);
     CloseHandle(hFileMapping);
     return EXIT_SUCCESS;
 }
@@ -296,30 +228,13 @@ DWORD WINAPI PlateValidatorThread(LPVOID lpParam) {
     PLATE * pBuf;
     PLATE p;
     HANDLE hFileMapping, hFile, sCanRead, sCanWrite, sConTaxi;
-    PARAMETERS* params = (PARAMETERS*)lpParam;
-    HMODULE hDLL;
-    hDLL = LoadLibrary(DLL_PATH_64);
-    if (hDLL == NULL) {
-        _tprintf(TEXT("[ERRO] Não foi possivel carregar a DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
-        return EXIT_FAILURE;
-    }
-
-    FuncRegister fRegister = (FuncRegister)GetProcAddress(hDLL, "dll_register");
-    FuncLog fLog = (FuncLog)GetProcAddress(hDLL, "dll_log");
-    if (fRegister == NULL || fLog == NULL) {
-        FreeLibrary(hDLL);
-        _tprintf(TEXT("[ERRO] Não foi possivel carregar as funções da DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
-        return EXIT_FAILURE;
-    }
+    Central* central = (Central*)lpParam;
+    DLLProfessores* dll = new DLLProfessores();
 
     hFile = CreateFile(SHAREDMEMORY_CEN_CON, GENERIC_ALL, FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == NULL) {
-        tstringstream msg;
-        msg << "[ERRO] Não foi possível criar o ficheiro " << SHAREDMEMORY_CEN_CON << "!" << endl;
-        msg << "[CODE] " << GetLastError() << endl;
-        _tprintf(msg.str().c_str());
-        fLog((TCHAR*)msg.str().c_str());
-        FreeLibrary(hDLL);
+        dll->log((TCHAR*)TEXT(" Não foi possível criar o ficheiro de memoria!"), TYPE::ERRO);
+        delete dll;
         CloseHandle(hFile);
         return EXIT_FAILURE;
     }
@@ -328,12 +243,8 @@ DWORD WINAPI PlateValidatorThread(LPVOID lpParam) {
     sConTaxi = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_PLATE_VALIDATOR_CONTAXI);
     sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_PLATE_VALIDATOR_READ);
     if (sCanWrite == NULL || sCanRead == NULL || sConTaxi == NULL) {
-        tstringstream msg;
-        msg << "[ERRO] Não foi possivel criar o somafro!" << endl;
-        msg << "[CODE] " << GetLastError() << endl;
-        _tprintf(msg.str().c_str());
-        fLog((TCHAR*)msg.str().c_str());
-        FreeLibrary(hDLL);
+        dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead ou sConTaxi Plate!"), TYPE::ERRO);
+        delete dll;
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(sConTaxi);
@@ -341,18 +252,14 @@ DWORD WINAPI PlateValidatorThread(LPVOID lpParam) {
         return EXIT_FAILURE;
     }
 
-    fRegister((TCHAR*)SEMAPHORE_PLATE_VALIDATOR_READ, 3);
-    fRegister((TCHAR*)SEMAPHORE_PLATE_VALIDATOR_WRITE, 3);
-    fRegister((TCHAR*)SEMAPHORE_PLATE_VALIDATOR_CONTAXI, 3);
+    dll->regist((TCHAR*)SEMAPHORE_PLATE_VALIDATOR_READ, 3);
+    dll->regist((TCHAR*)SEMAPHORE_PLATE_VALIDATOR_WRITE, 3);
+    dll->regist((TCHAR*)SEMAPHORE_PLATE_VALIDATOR_CONTAXI, 3);
 
     hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, BUFFER_SIZE, SHAREDMEMORY_PLATE_VALIDATION);
     if (hFileMapping == NULL) {
-        tstringstream msg;
-        msg << "[ERRO] Não foi possivel criar o file mapping!" << endl;
-        msg << "[CODE] " << GetLastError() << endl;
-        _tprintf(msg.str().c_str());
-        fLog((TCHAR*)msg.str().c_str());
-        FreeLibrary(hDLL);
+        dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping!"), TYPE::ERRO);
+        delete dll;
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(sConTaxi);
@@ -363,12 +270,8 @@ DWORD WINAPI PlateValidatorThread(LPVOID lpParam) {
 
     pBuf = (PLATE *)MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(PLATE));
     if (pBuf == NULL) {
-        tstringstream msg;
-        msg << "[ERRO] Não foi possivel mapear o ficheiro!" << endl;
-        msg << "[CODE] " << GetLastError() << endl;
-        _tprintf(msg.str().c_str());
-        fLog((TCHAR*)msg.str().c_str());
-        FreeLibrary(hDLL);
+        dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
+        delete dll;
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(sConTaxi);
@@ -377,16 +280,16 @@ DWORD WINAPI PlateValidatorThread(LPVOID lpParam) {
         return EXIT_FAILURE;
     }
 
-    fRegister((TCHAR*)SHAREDMEMORY_PLATE_VALIDATION, 7);
+    dll->regist((TCHAR*)SHAREDMEMORY_PLATE_VALIDATION, 7);
 
-    while (!params->exit) {
+    while (!central->isExit()) {
         WaitForSingleObject(sCanRead, INFINITE);
         _tcscpy_s(p.plate, TAXI_PLATE_SIZE, pBuf->plate);
-        if (!params->exit) {
+        if (!central->isExit()) {
             p.status = 0;
-            for (int i = 0; i < params->cars.size(); i++)
+            for (int i = 0; i < central->cars.size(); i++)
             {
-                if (params->cars[i]->isSamePlate(p.plate)) {
+                if (central->cars[i]->isSamePlate(p.plate)) {
                     p.status = 1;
                     break;
                 }
@@ -396,12 +299,142 @@ DWORD WINAPI PlateValidatorThread(LPVOID lpParam) {
             ReleaseSemaphore(sCanWrite, 1, NULL);
         }
     }
-    FreeLibrary(hDLL);
+    delete dll;
     UnmapViewOfFile(pBuf);
     CloseHandle(sCanWrite);
     CloseHandle(sCanRead);
     CloseHandle(sConTaxi);
     CloseHandle(hFile);
+    CloseHandle(hFileMapping);
+    return EXIT_SUCCESS;
+}
+
+DWORD WINAPI SendMapThread(LPVOID lpParam) {
+    HANDLE hFile, hFileMapping, sCanRead, sCanWrite;
+    TAXI* pBuf;
+    TAXI taxi;
+    DLLProfessores* dll = new DLLProfessores();
+    Central* central = (Central*)lpParam;
+    _tcscpy_s(taxi.map, MAP_SHARE_SIZE, central->getCleanMap());
+
+    hFile = CreateFile(SHAREDMEMORY_SHAREMAP, GENERIC_ALL, FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == NULL) {
+        dll->log((TCHAR*)TEXT("Não foi possível criar o ficheiro de memoria SHAREDMEMORY_SHAREMAP!"), TYPE::ERRO);
+        delete dll;
+        CloseHandle(hFile);
+        return EXIT_FAILURE;
+    }
+
+    sCanWrite = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_SHAREMAP_WRITE);
+    sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_SHAREMAP_READ);
+
+    if (sCanWrite == NULL || sCanRead == NULL) {
+        dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead!"), TYPE::ERRO);
+        delete dll;
+        CloseHandle(sCanWrite);
+        CloseHandle(sCanRead);
+        return EXIT_FAILURE;
+    }
+    dll->regist((TCHAR*)SEMAPHORE_SHAREMAP_WRITE, 3);
+    dll->regist((TCHAR*)SEMAPHORE_SHAREMAP_READ, 3);
+
+    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, BUFFER_SIZE, SHAREDMEMORY_ZONE_SHAREMAP);
+
+    if (hFileMapping == NULL) {
+        dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping SHAREDMEMORY_ZONE_SHAREMAP!"), TYPE::ERRO);
+        delete dll;
+        CloseHandle(sCanWrite);
+        CloseHandle(sCanRead);
+        CloseHandle(hFileMapping);
+        return EXIT_FAILURE;
+    }
+
+    pBuf = (TAXI*)MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(TAXI));
+    if (pBuf == NULL) {
+        dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
+        delete dll;
+        CloseHandle(sCanWrite);
+        CloseHandle(sCanRead);
+        CloseHandle(hFileMapping);
+        return EXIT_FAILURE;
+    }
+
+    dll->regist((TCHAR*)SHAREDMEMORY_ZONE_SHAREMAP, 7);
+    while (!central->isExit()) {
+        WaitForSingleObject(sCanWrite, INFINITE);
+        CopyMemory(pBuf, &taxi, sizeof(TAXI));
+        ReleaseSemaphore(sCanRead, 1, NULL);
+    }
+    delete dll;
+    CloseHandle(sCanWrite);
+    CloseHandle(sCanRead);
+    UnmapViewOfFile(pBuf);
+    CloseHandle(hFileMapping);
+    return EXIT_SUCCESS;
+}
+
+DWORD WINAPI SendMapInfoThread(LPVOID lpParam) {
+    HANDLE hFile, hFileMapping, sCanRead, sCanWrite;
+    MAPINFO* pBuf;
+    MAPINFO mapinfo;
+    DLLProfessores* dll = new DLLProfessores();
+    Central* central = (Central*)lpParam;
+ 
+
+    hFile = CreateFile(SHAREDMEMORY_MAPINFO, GENERIC_ALL, FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == NULL) {
+        dll->log((TCHAR*)TEXT("Não foi possível criar o ficheiro de memoria SHAREDMEMORY_SHAREMAP!"), TYPE::ERRO);
+        delete dll;
+        CloseHandle(hFile);
+        return EXIT_FAILURE;
+    }
+
+    sCanWrite = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, SEMAPHORE_MAPINFO_WRITE);
+    sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_MAPINFO_READ);
+
+    if (sCanWrite == NULL || sCanRead == NULL) {
+        dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead!"), TYPE::ERRO);
+        delete dll;
+        CloseHandle(sCanWrite);
+        CloseHandle(sCanRead);
+        return EXIT_FAILURE;
+    }
+    dll->regist((TCHAR*)SEMAPHORE_MAPINFO_WRITE, 3);
+    dll->regist((TCHAR*)SEMAPHORE_MAPINFO_READ, 3);
+
+    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, BUFFER_SIZE, SHAREDMEMORY_ZONE_MAPINFO);
+
+    if (hFileMapping == NULL) {
+        dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping SHAREDMEMORY_ZONE_SHAREMAP!"), TYPE::ERRO);
+        delete dll;
+        CloseHandle(sCanWrite);
+        CloseHandle(sCanRead);
+        CloseHandle(hFileMapping);
+        return EXIT_FAILURE;
+    }
+
+    pBuf = (MAPINFO*)MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(MAPINFO));
+    if (pBuf == NULL) {
+        dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
+        delete dll;
+        CloseHandle(sCanWrite);
+        CloseHandle(sCanRead);
+        CloseHandle(hFileMapping);
+        return EXIT_FAILURE;
+    }
+
+    dll->regist((TCHAR*)SHAREDMEMORY_ZONE_MAPINFO, 7);
+    while (!central->isExit()) {
+        _tcscpy_s(mapinfo.map, MAP_SHARE_SIZE, central->getMapToShare());
+        WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND);
+        CopyMemory(pBuf, &mapinfo, sizeof(MAPINFO));
+        ReleaseSemaphore(sCanRead, 1, NULL);
+        delete wt;
+    }
+    delete dll;
+    CloseHandle(sCanWrite);
+    CloseHandle(sCanRead);
+    UnmapViewOfFile(pBuf);
     CloseHandle(hFileMapping);
     return EXIT_SUCCESS;
 }

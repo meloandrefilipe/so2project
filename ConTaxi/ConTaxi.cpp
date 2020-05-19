@@ -1,5 +1,5 @@
 #include "ConTaxi.h"
-#include "Cooms.h"
+
 
 int _tmain(int argc ,TCHAR* argv[]) {
 
@@ -8,67 +8,172 @@ int _tmain(int argc ,TCHAR* argv[]) {
 	_setmode(_fileno(stdout), _O_WTEXT);
 	_setmode(_fileno(stderr), _O_WTEXT);
 #endif
-	DWORD idCommandsThread, idCommunicationThread, idCloseThread, idGetCarDataThread;
-	HANDLE commandsThread, communicationThread, closeThread, getCarDataThread;
-	PARAMETERS params; 
-	HMODULE hDLL;
+	DWORD idCommandsThread, idCommunicationThread, idCloseThread, idGetCarDataThread, idGetMapThread, idMoveCarThread;
+	HANDLE commandsThread, communicationThread, closeThread, getCarDataThread, getMapThread, moveCarThread;
 
-	hDLL = LoadLibrary(DLL_PATH_64);
-	if (hDLL == NULL) {
-		_tprintf(TEXT("[ERRO] Não foi possivel carregar a DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
-		return EXIT_FAILURE;
-	}
+	Taxista* taxista = new Taxista();
+	DLLProfessores* dll = new DLLProfessores();
 
-	FuncRegister fRegister = (FuncRegister)GetProcAddress(hDLL, "dll_register");
-	FuncLog fLog = (FuncLog)GetProcAddress(hDLL, "dll_log");
-
-	if (fRegister == NULL || fLog == NULL) {
-		_tprintf(TEXT("[ERRO] Não foi possivel carregar as funções da DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
-		return EXIT_FAILURE;
-	}
-
-	params.exit = false;
-
-	getCarDataThread = CreateThread(NULL, 0, GetCarDataThread, &params, 0, &idGetCarDataThread);
-	closeThread = CreateThread(NULL, 0, CloseThread, &params, 0, &idCloseThread);
+	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND);
+	closeThread = CreateThread(NULL, 0, CloseThread, taxista, 0, &idCloseThread);
+	getMapThread = CreateThread(NULL, 0, GetMapThread, taxista, 0, &idGetMapThread);
+	WaitForSingleObject(getMapThread, INFINITE);
+	delete wt;
+	getCarDataThread = CreateThread(NULL, 0, GetCarDataThread, taxista, 0, &idGetCarDataThread);
 	WaitForSingleObject(getCarDataThread, INFINITE);
-	commandsThread = CreateThread(NULL, 0, CommandsThread, &params, 0, &idCommandsThread);
-	communicationThread = CreateThread(NULL, 0, CommunicationThread, &params, 0, &idCommunicationThread);
 
 
-	if (commandsThread == NULL || communicationThread == NULL || closeThread == NULL) {
-		tstringstream msg;
-		msg << "[ERRO] Não foi possivel criar a Thread!" << endl;
-		msg << "[CODE] " << GetLastError() << endl;
-		_tprintf(msg.str().c_str());
-		fLog((TCHAR*)msg.str().c_str());
-		FreeLibrary(hDLL);
+
+
+	moveCarThread = CreateThread(NULL, 0, MoveCarThread, taxista, 0, &idMoveCarThread);
+	commandsThread = CreateThread(NULL, 0, CommandsThread, taxista, 0, &idCommandsThread);
+	communicationThread = CreateThread(NULL, 0, CommunicationThread, taxista, 0, &idCommunicationThread);
+
+
+	if (commandsThread == NULL || communicationThread == NULL || closeThread == NULL || moveCarThread == NULL) {
+		dll->log((TCHAR*)TEXT("Não foi possivel criar a Thread!"), TYPE::ERRO);
+		delete dll;
 		return EXIT_FAILURE;
 	}
 	
 	WaitForSingleObject(commandsThread, INFINITE);
+	WaitForSingleObject(moveCarThread, INFINITE);
 	WaitForSingleObject(communicationThread, INFINITE);
 	WaitForSingleObject(closeThread, INFINITE);
 
 	CloseHandle(getCarDataThread);
+	CloseHandle(moveCarThread);
 	CloseHandle(commandsThread);
 	CloseHandle(closeThread);
 	CloseHandle(communicationThread);
 
-	FreeLibrary(hDLL);
+	delete dll;
 	return EXIT_SUCCESS;
 }
+
+DWORD WINAPI MoveCarThread(LPVOID lpParam) {
+	srand((unsigned int)time(NULL));
+	Taxista* taxista = (Taxista*)lpParam;
+	Car* car = taxista->car;
+	TownMap* city = taxista->getMap();
+	vector<Node*> nodes = city->getNodes();
+	int oldRow = car->getRow();
+	int oldCol = car->getCol();
+	Node* carNode = city->getNodeAt(car->getRow(), car->getCol());
+	Node* nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+
+	while (!taxista->isExit()) {
+		WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * (LONGLONG)car->getSpeed());
+		car->setPosition(nextMove->getRow(), nextMove->getCol());
+		SendCar(taxista);
+		carNode = city->getNodeAt(car->getRow(), car->getCol());
+		if (carNode->getNeighbours().size() > 2) {
+			nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+		}
+		else {
+			if (car->getCol() == oldCol && car->getRow() > oldRow) { //Moveu para a casa de baixo
+				do {
+					if (car->getRow() + 1 < taxista->getMap()->getRows()) { // verifico se é posição do mapa
+						nextMove = city->getNodeAt(car->getRow() + 1, car->getCol()); // apanho a posição
+						if (!nextMove->isRoad()) { // verifico se é estrada
+							nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()]; // seleciono uma proxima posição
+							if (carNode->getNeighbours().size() == 1) { // verifico se a posição nao é a unica (no caso de ser um beco sem saida) para poder sair do while
+								break;
+							}
+						}
+					}
+					else {
+						nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()]; //obtenho nova posição caso a posição anterior exceda o mapa
+						if (carNode->getNeighbours().size() == 1) { // sai do while se for um beco sem saida
+							break;
+						}
+					}
+				} while (nextMove->getCol() == oldCol && nextMove->getRow() == oldRow); // precorro o codigo enquando a nova posição nao for diferente da velha
+			}
+			else if (car->getCol() == oldCol && car->getRow() < oldRow) { // moveu para a casa de cima
+				do {
+					if (car->getRow() - 1 > 0) {
+						nextMove = city->getNodeAt(car->getRow() - 1, car->getCol());
+						if (!nextMove->isRoad()) {
+							nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+							if (carNode->getNeighbours().size() == 1) {
+								break;
+							}
+						}
+					}
+					else {
+						nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+						if (carNode->getNeighbours().size() == 1) {
+							break;
+						}
+					}
+				} while (nextMove->getCol() == oldCol && nextMove->getRow() == oldRow);
+			}
+			else if (car->getCol() > oldCol && car->getRow() == oldRow) { // moveu para a direita
+				do {
+					if(car->getCol() + 1 < taxista->getMap()->getCols()){
+						nextMove = city->getNodeAt(car->getRow(), car->getCol() + 1 );
+						if (!nextMove->isRoad()) {
+							nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+							if (carNode->getNeighbours().size() == 1) {
+								break;
+							}
+						}
+					}
+					else {
+						nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+						if (carNode->getNeighbours().size() == 1) {
+							break;
+						}
+					}
+				} while (nextMove->getCol() == oldCol && nextMove->getRow() == oldRow);
+			}
+			else  if (car->getCol() < oldCol && car->getRow() == oldRow) { //moveu para a esquerda
+				do {
+					if (car->getCol() - 1 > 0) {
+						nextMove = city->getNodeAt(car->getRow(), car->getCol() - 1);
+						if (!nextMove->isRoad()) {
+							nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+							if (carNode->getNeighbours().size() == 1) {
+								break;
+							}
+						}
+					}
+					else {
+						nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+						if (carNode->getNeighbours().size() == 1) {
+							break;
+						}
+					}
+				} while (nextMove->getCol() == oldCol && nextMove->getRow() == oldRow);
+			}
+			else { // esta parado na mesma posição que antes
+				nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+			}
+		}
+		oldRow = car->getRow();
+		oldCol = car->getCol();
+	}	
+	return EXIT_SUCCESS;
+}
+
+DWORD WINAPI GetMapThread(LPVOID lpParam) {
+	Taxista* taxista = (Taxista*)lpParam;
+	return getMap(taxista);
+}
+
 DWORD WINAPI GetCarDataThread(LPVOID lpParam) {
-	PARAMETERS* params = (PARAMETERS*)lpParam;
+	Taxista* taxista = (Taxista*)lpParam;
+	BOOL exists = false;
 	int row = 0; 
 	int col = 0;
 	TCHAR plate[TAXI_PLATE_SIZE] = TEXT("XX XX XX");
 
-	_tprintf(TEXT("Indique a matrícula do seu veículo : "));
-	int validate = 0;
+	_tprintf(TEXT("\nIndique a matrícula do seu veículo: "));
+	
 	do {
-		if (validate == 1) {
-			_tprintf(TEXT("Esta matricula já se encontra no nosso sistema, coloque outra: "));
+		if (exists) {
+			_tprintf(TEXT("Esta matricula já se encontra no nosso sistema!\n Coloque outra ex:(XX-XX-XX): "));
 		}
 		if (fgetws(plate, sizeof(plate), stdin) == NULL) {
 			_tprintf(TEXT("[ERRO] Ocorreu um erro a ler a matrícula\n[CODE] %d\n"), GetLastError());
@@ -78,36 +183,11 @@ DWORD WINAPI GetCarDataThread(LPVOID lpParam) {
 			if (plate[i] == '\n')
 				plate[i] = '\0';
 		}
-		validate = validatePlate(plate);
-	} while (validate != 0);
-	
-	
-	while (!params->exit) {
-		_tprintf(TEXT("Indique a coordenada X: "));
-		wcin >> col;
-		if (wcin.fail()) {
-			_tprintf(TEXT("Insira um valor inteiro para a coordenada!\n"));
-			wcin.clear();
-			wcin.ignore(256, '\n');
-			continue;
-		}
-		else break;
-	}
-
-	while (!params->exit) {
-		_tprintf(TEXT("Indique a coordenada Y: "));
-		wcin >> row;
-		if (wcin.fail()) {
-			_tprintf(TEXT("Insira um valor inteiro para a coordenada!\n"));
-			wcin.clear();
-			wcin.ignore(256, '\n');
-			continue;
-		}
-		else break;
-	}
-	wcin.clear();
-	wcin.ignore(256, '\n');
-	params->car = new Car(GetCurrentProcessId(), row, col, plate);
+		exists = validatePlate(plate);
+	} while (exists);
+	Node* position = taxista->getRandomRoad();
+	taxista->car = new Car(GetCurrentProcessId(), position->getRow(), position->getCol(), plate);
+	_tprintf(TEXT("[CAR] Iniciado na posição (%d,%d)\n"), taxista->car->getRow(), taxista->car->getCol());
 	return EXIT_SUCCESS;
 }
 
@@ -115,25 +195,13 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 	TCHAR command[COMMAND_SIZE] = TEXT("");
 	TCHAR* pch;
 	TCHAR* something;
-	PARAMETERS* params = (PARAMETERS*)lpParam;
-	HMODULE hDLL;
+	Taxista* taxista = (Taxista*)lpParam;
+	DLLProfessores* dll = new DLLProfessores();
 
-	hDLL = LoadLibrary(DLL_PATH_64);
-	if (hDLL == NULL) {
-		_tprintf(TEXT("[ERRO] Não foi possivel carregar a DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
-		return EXIT_FAILURE;
-	}
-
-	FuncRegister fRegister = (FuncRegister)GetProcAddress(hDLL, "dll_register");
-	FuncLog fLog = (FuncLog)GetProcAddress(hDLL, "dll_log");
-	while (!params->exit) {
+	while (!taxista->isExit()) {
 		_tprintf(TEXT("COMMAND: "));
 		if (fgetws(command, sizeof(command), stdin) == NULL) {
-			tstringstream msg;
-			msg << "[ERRO] Ocorreu um erro a ler o comando inserido!" << endl;
-			msg << "[CODE] " << GetLastError() << endl;
-			_tprintf(msg.str().c_str());
-			fLog((TCHAR*)msg.str().c_str());
+			dll->log((TCHAR*)TEXT("Ocorreu um erro a ler o comando inserido!"), TYPE::ERRO);
 		}
 		for (int i = 0; i < sizeof(command) && command[i]; i++)
 		{
@@ -142,17 +210,17 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 		}
 		pch = _tcstok_s(command, TEXT(" "), &something);
 		if (_tcscmp(pch, TEXT("exit")) == 0) {
-			params->exit = true;
-			FreeLibrary(hDLL);
+			delete dll;
+			taxista->setExit(true);
 			_tprintf(TEXT("[SHUTDOWN] A Sair...\n"));
 			WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 5);
 			exit(EXIT_SUCCESS);
 		}
 		else if (_tcscmp(pch, TEXT("acelerar")) == 0) {
-			params->car->speedUp();
+			taxista->car->speedUp();
 		}
 		else if (_tcscmp(pch, TEXT("desacelerar")) == 0) {
-			params->car->speedDown();
+			taxista->car->speedDown();
 		}
 		else if (_tcscmp(pch, TEXT("nq")) == 0) {
 
@@ -164,47 +232,30 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 				val = stoi(pch);
 			}
 			catch (invalid_argument) {
-				tstringstream msg;
-				msg << "[ERRO] Valor inválido!" << endl;
-				msg << "[CODE] " << GetLastError() << endl;
-				_tprintf(msg.str().c_str());
-				fLog((TCHAR*)msg.str().c_str());
+				dll->log((TCHAR*)TEXT("Valor inválido!"), TYPE::WARNING);
 				continue;
 			}
 			catch (out_of_range) {
-				tstringstream msg;
-				msg << "[ERRO] Este valor não é muito grande?" << endl;
-				msg << "[CODE] " << GetLastError() << endl;
-				_tprintf(msg.str().c_str());
-				fLog((TCHAR*)msg.str().c_str());
+				dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
 				continue;
 			}
-			params->car->setNq(val);
+			taxista->car->setNq(val);
 		}
 		else if (_tcscmp(pch, TEXT("autopicker")) == 0) {
 
 			pch = _tcstok_s(something, TEXT(" "), &something);
 
 			if (_tcscmp(pch, TEXT("on")) == 0) {
-				params->car->setAutopicker(true);
-				tstringstream msg;
-				msg << "[AUTOPICKER] Ativado!" << endl;
-				_tprintf(msg.str().c_str());
-				fLog((TCHAR*)msg.str().c_str());
+				dll->log((TCHAR*)TEXT("[AUTOPICKER] Ativado!"), TYPE::WARNING);
+				taxista->car->setAutopicker(true);
 
 			}
 			else if (_tcscmp(pch, TEXT("off")) == 0) {
-				params->car->setAutopicker(false);
-				tstringstream msg;
-				msg << "[AUTOPICKER] Desativado!" << endl;
-				_tprintf(msg.str().c_str());
-				fLog((TCHAR*)msg.str().c_str());
+				dll->log((TCHAR*)TEXT("[AUTOPICKER] Desativado!"), TYPE::WARNING);
+				taxista->car->setAutopicker(false);
 			}
 			else {
-				tstringstream msg;
-				msg << "[WARNING] A Opção inserida não existe!" << endl;
-				_tprintf(msg.str().c_str());
-				fLog((TCHAR*)msg.str().c_str());
+				dll->log((TCHAR*)TEXT("A Opção inserida não existe!"), TYPE::WARNING);
 				continue;
 			}
 		}
@@ -218,79 +269,53 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 				traveler = stoi(pch);
 			}
 			catch (invalid_argument) {
-				tstringstream msg;
-				msg << "[ERRO] Valor inválido!" << endl;
-				msg << "[CODE] " << GetLastError() << endl;
-				_tprintf(msg.str().c_str());
-				fLog((TCHAR*)msg.str().c_str());
-				continue;
+				dll->log((TCHAR*)TEXT("Valor inválido!"), TYPE::WARNING);
+				break;
 			}
 			catch (out_of_range) {
-				tstringstream msg;
-				msg << "[ERRO] Este valor não é muito grande?" << endl;
-				msg << "[CODE] " << GetLastError() << endl;
-				_tprintf(msg.str().c_str());
-				fLog((TCHAR*)msg.str().c_str());
-				continue;
+				dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
+				break;
 			}
-			tstringstream msg;
-			msg << "[PASSENGER] Vou até ao passageiro #%d" << traveler << endl;
-			msg << "[CODE] " << GetLastError() << endl;
-			_tprintf(msg.str().c_str());
-			fLog((TCHAR*)msg.str().c_str());
-
+			dll->log((TCHAR*)(TEXT("Vou até ao passageiro #%s"), pch), TYPE::NOTIFICATION);
 
 			// IMPLEMENTAR CODIGO DE TRANSPORTE DO PASSAGEIRO
 		}
 		else {
-			tstringstream msg;
-			msg << "[WARNING] O comando inserido não existe!" << endl;
-			_tprintf(msg.str().c_str());
-			fLog((TCHAR*)msg.str().c_str());
+			dll->log((TCHAR*)TEXT("O comando inserido não existe!"), TYPE::WARNING);
 		}
 	}
+	delete dll;
 	return EXIT_SUCCESS;
 }
 
 DWORD WINAPI CommunicationThread(LPVOID lpParam) {
-	
-	PARAMETERS *params = (PARAMETERS*)lpParam;
-
-	return SendCar(params->car);
+	Taxista* taxista = (Taxista*)lpParam;
+	return SendCar(taxista);
 }
 
 DWORD WINAPI CloseThread(LPVOID lpParam) {
 
-	PARAMETERS* params = (PARAMETERS*)lpParam;
-	HMODULE hDLL;
+	Taxista* taxista = (Taxista*)lpParam;
 	HANDLE hEventClose;
+	DLLProfessores* dll = new DLLProfessores();
 
-	hDLL = LoadLibrary(DLL_PATH_64);
-	if (hDLL == NULL) {
-		_tprintf(TEXT("[ERRO] Não foi possivel carregar a DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
-		return EXIT_FAILURE;
-	}
-
-	FuncRegister fRegister = (FuncRegister)GetProcAddress(hDLL, "dll_register");
-	FuncLog fLog = (FuncLog)GetProcAddress(hDLL, "dll_log");
-
-	hEventClose = CreateEvent(NULL, FALSE, FALSE, EVENT_CLOSE_ALL);
+	hEventClose = CreateEvent(NULL, TRUE, FALSE, EVENT_CLOSE_ALL);
 	if (hEventClose == NULL) {
-		tstringstream msg;
-		msg << "[ERRO] Não foi possivel criar o evento!" << endl;
-		msg << "[CODE] " << GetLastError() << endl;
-		_tprintf(msg.str().c_str());
-		fLog((TCHAR*)msg.str().c_str());
+		dll->log((TCHAR*)TEXT("Não foi possivel criar o evento!"), TYPE::ERRO);
+		delete dll;
 	}
+	dll->regist((TCHAR*)EVENT_CLOSE_ALL, 4);
 
 	WaitForSingleObject(hEventClose, INFINITE);
 	_tprintf(TEXT("\n[WARNING] A Central fechou!\n"));
-	params->exit = true;
+	taxista->setExit(true);
 	_tprintf(TEXT("[SHUTDOWN] A Sair...\n"));
+	delete dll;
+	CloseHandle(hEventClose);
 	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 5);
 
-	FreeLibrary(hDLL);
-	CloseHandle(hEventClose);
+
+
 	exit(EXIT_SUCCESS);
 	return EXIT_SUCCESS;
 }

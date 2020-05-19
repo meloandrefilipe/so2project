@@ -21,6 +21,7 @@ public:
 	int getRow() const;
 	int getCol() const;
 	TCHAR* getID() const;
+
 	void toString() const;
 	BOOL isRoad() const;
 	vector<Node*> getNeighbours() const;

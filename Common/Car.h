@@ -19,6 +19,7 @@ class Car {
 	float speed;
 	BOOL autopicker;
 	TCHAR * plate;
+	HANDLE hMutex;
 
 public:
 	Car(int id, int row, int col, TCHAR * plate);
@@ -39,6 +40,6 @@ public:
 	void setSpeed(float speed);
 	void setNq(int nq);
 	void setAutopicker(BOOL val);
-
+	void setPosition(int row, int col);
 };
 
