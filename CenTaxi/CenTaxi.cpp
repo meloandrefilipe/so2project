@@ -137,7 +137,7 @@ DWORD WINAPI MainMenuThread(LPVOID lpParam) {
 
 DWORD WINAPI CommunicationThread(LPVOID lpParam) {
     TAXI * pBuf;
-    HANDLE hFileMapping, hFile, sCanRead, sCanWrite, sConTaxi;
+    HANDLE hFileMapping, hFile, sCanRead, sCanWrite;
     Central* central = (Central*)lpParam;
     DLLProfessores* dll = new DLLProfessores();
 
@@ -152,20 +152,17 @@ DWORD WINAPI CommunicationThread(LPVOID lpParam) {
 
     sCanWrite = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, SEMAPHORE_CAN_WRITE_CENCON);
     sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_CAN_READ_CENCON);
-    sConTaxi = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_CAN_CONTAXI_CENCON);
 
-    if (sCanWrite == NULL || sCanRead == NULL || sConTaxi == NULL) {
+    if (sCanWrite == NULL || sCanRead == NULL) {
         dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead Comunicação!"), TYPE::ERRO);
         delete dll;
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
-        CloseHandle(sConTaxi);
         CloseHandle(hFile);
         return EXIT_FAILURE;
     }
     dll->regist((TCHAR*)SEMAPHORE_CAN_WRITE_CENCON, 3);
     dll->regist((TCHAR*)SEMAPHORE_CAN_READ_CENCON, 3);
-    dll->regist((TCHAR*)SEMAPHORE_CAN_CONTAXI_CENCON, 3);
 
     hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, BUFFER_SIZE, SHAREDMEMORY_CEN_CON_ZONE);
     
@@ -176,7 +173,6 @@ DWORD WINAPI CommunicationThread(LPVOID lpParam) {
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(hFile);
-        CloseHandle(sConTaxi);
         CloseHandle(hFileMapping);
         return EXIT_FAILURE;
     }
@@ -187,7 +183,6 @@ DWORD WINAPI CommunicationThread(LPVOID lpParam) {
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(hFile);
-        CloseHandle(sConTaxi);
         CloseHandle(hFileMapping);
         return EXIT_FAILURE;
     } 
@@ -207,11 +202,7 @@ DWORD WINAPI CommunicationThread(LPVOID lpParam) {
             else {
                 central->updateCar(pBuf);
             }
-            _tcscpy_s(pBuf->map, MAP_SHARE_SIZE, central->getCleanMap());
-            CopyMemory(pBuf, pBuf, sizeof(MAP_SHARE_SIZE));
-            ReleaseSemaphore(sConTaxi, 1, NULL);
-
-            //ReleaseSemaphore(sCanWrite, 1, NULL);
+            ReleaseSemaphore(sCanWrite, 1, NULL);
         }
     }
     delete dll;
@@ -219,7 +210,6 @@ DWORD WINAPI CommunicationThread(LPVOID lpParam) {
     CloseHandle(sCanWrite);
     CloseHandle(sCanRead);
     CloseHandle(hFile);
-    CloseHandle(sConTaxi);
     CloseHandle(hFileMapping);
     return EXIT_SUCCESS;
 }

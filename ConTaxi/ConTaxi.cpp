@@ -63,12 +63,16 @@ DWORD WINAPI MoveCarThread(LPVOID lpParam) {
 	Node* nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
 
 	while (!taxista->isExit()) {
+		oldRow = car->getRow();
+		oldCol = car->getCol();
 		WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * (LONGLONG)car->getSpeed());
 		car->setPosition(nextMove->getRow(), nextMove->getCol());
 		SendCar(taxista);
 		carNode = city->getNodeAt(car->getRow(), car->getCol());
 		if (carNode->getNeighbours().size() > 2) {
-			nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+			do{
+				nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+			} while (nextMove->getCol() == oldCol && nextMove->getRow() == oldRow);
 		}
 		else {
 			if (car->getCol() == oldCol && car->getRow() > oldRow) { //Moveu para a casa de baixo
@@ -88,17 +92,17 @@ DWORD WINAPI MoveCarThread(LPVOID lpParam) {
 							break;
 						}
 					}
-				} while (nextMove->getCol() == oldCol && nextMove->getRow() == oldRow); // precorro o codigo enquando a nova posição nao for diferente da velha
+				} while (nextMove->getCol() == carNode->getCol() && nextMove->getRow() == carNode->getRow()); // precorro o codigo enquando a nova posição nao for diferente da velha
 			}
 			else if (car->getCol() == oldCol && car->getRow() < oldRow) { // moveu para a casa de cima
 				do {
 					if (car->getRow() - 1 > 0) {
 						nextMove = city->getNodeAt(car->getRow() - 1, car->getCol());
 						if (!nextMove->isRoad()) {
-							nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
-							if (carNode->getNeighbours().size() == 1) {
-								break;
-							}
+								nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+								if (carNode->getNeighbours().size() == 1) {
+									break;
+								}
 						}
 					}
 					else {
@@ -107,7 +111,7 @@ DWORD WINAPI MoveCarThread(LPVOID lpParam) {
 							break;
 						}
 					}
-				} while (nextMove->getCol() == oldCol && nextMove->getRow() == oldRow);
+				} while (nextMove->getCol() == carNode->getCol() && nextMove->getRow() == carNode->getRow());
 			}
 			else if (car->getCol() > oldCol && car->getRow() == oldRow) { // moveu para a direita
 				do {
@@ -126,7 +130,7 @@ DWORD WINAPI MoveCarThread(LPVOID lpParam) {
 							break;
 						}
 					}
-				} while (nextMove->getCol() == oldCol && nextMove->getRow() == oldRow);
+				} while (nextMove->getCol() == carNode->getCol() && nextMove->getRow() == carNode->getRow());
 			}
 			else  if (car->getCol() < oldCol && car->getRow() == oldRow) { //moveu para a esquerda
 				do {
@@ -145,14 +149,12 @@ DWORD WINAPI MoveCarThread(LPVOID lpParam) {
 							break;
 						}
 					}
-				} while (nextMove->getCol() == oldCol && nextMove->getRow() == oldRow);
+				} while (nextMove->getCol() == carNode->getCol() && nextMove->getRow() == carNode->getRow());
 			}
 			else { // esta parado na mesma posição que antes
 				nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
 			}
 		}
-		oldRow = car->getRow();
-		oldCol = car->getCol();
 	}	
 	return EXIT_SUCCESS;
 }
