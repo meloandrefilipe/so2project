@@ -3,7 +3,13 @@
 #include "Core.h"
 #include "Car.h"
 #include "WaitableTimer.h"
-#include "TownMap.h"
+#include "BreadthFirstSearch.h"
+
+
+typedef struct TAXI_SMARTMOVE {
+	int dest_row;
+	int dest_col;
+}SMARTMOVE;
 
 
 class Taxista
@@ -13,17 +19,26 @@ class Taxista
 	TCHAR* textmap;
 	int mapSize;
 	HANDLE hMutex;
+	BOOL randomMove;
+	BOOL smartPath;
+	
 public:
+	SMARTMOVE move;
 	DLLProfessores* dll;
 	Car* car;
 
 	Taxista();
 	~Taxista();
 
-
+	Node* getNodeAt(int row, int col);
 	TCHAR* getMapText();
 	void setMap(TownMap* m);
 	void setMapSize(int size);
+	BOOL isRandomMove() const;
+	void enableRandomMove();
+	void disableRandomMove();
+	void resetSmartPath();
+	BOOL getSmartPath() const;
 	BOOL isExit() const;
 	void setExit(BOOL exit);
 	Node* getRandomRoad();

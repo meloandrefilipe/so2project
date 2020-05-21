@@ -41,6 +41,7 @@ DWORD DLLProfessores::log(TCHAR* message, TYPE type)
     {
     case TYPE::ERRO:
         msg << "[ERRO] " << message << endl;
+        msg << "[CODE] " << GetLastError() << endl;
         break;
     case TYPE::WARNING:
         msg << "[WARNING] " << message << endl;
@@ -52,8 +53,6 @@ DWORD DLLProfessores::log(TCHAR* message, TYPE type)
         msg << message << endl;
         break;
     }
-    
-    msg << "[CODE] " << GetLastError() << endl;
     _tprintf(msg.str().c_str());
     _tcscpy_s(str, BUFFER_SIZE, msg.str().c_str());
     this->funcLog(str);

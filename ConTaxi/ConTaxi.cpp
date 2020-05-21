@@ -19,7 +19,7 @@ int _tmain(int argc ,TCHAR* argv[]) {
 		taxista->dll->log((TCHAR*)TEXT("Não foi possivel criar o evento para encerrar!"), TYPE::ERRO);
 		return EXIT_FAILURE;
 	}
-
+	_tprintf(TEXT("A ESPERA...\n"));
 	WaitForSingleObject(hEventCanBoot, INFINITE);
 	CloseHandle(hEventCanBoot);
 	_tprintf(TEXT("ConTaxi\n"));
@@ -65,103 +65,154 @@ DWORD WINAPI MoveCarThread(LPVOID lpParam) {
 	int oldCol = car->getCol();
 	Node* carNode = city->getNodeAt(car->getRow(), car->getCol());
 	Node* nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
-	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * car->getSpeed());
+	WaitableTimer* wt = new WaitableTimer(car->getSpeed());
+	HANDLE hMutex;
+
+	hMutex = CreateMutex(NULL, FALSE, NULL);
+	if (hMutex == NULL){
+		CloseHandle(hMutex);
+		taxista->dll->log(((TCHAR*)TEXT("Contaxi Move CreateMutex")), TYPE::ERRO);
+		return EXIT_FAILURE;
+	}
+
 	while (!taxista->isExit()) {
-		oldRow = car->getRow();
-		oldCol = car->getCol();
-		wt->updateTime(WAIT_ONE_SECOND * car->getSpeed());
-		wt->wait();
-		car->setPosition(nextMove->getRow(), nextMove->getCol());
-		SendCar(taxista);
-		carNode = city->getNodeAt(car->getRow(), car->getCol());
-		if (carNode->getNeighbours().size() > 2) {
-			do{
-				nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
-			} while (nextMove->getCol() == oldCol && nextMove->getRow() == oldRow);
-		}
-		else {
-			if (car->getCol() == oldCol && car->getRow() > oldRow) { //Moveu para a casa de baixo
+		if (taxista->isRandomMove()) { // Random move
+			WaitForSingleObject(hMutex, INFINITE);
+			oldRow = car->getRow();
+			oldCol = car->getCol();
+			wt->updateTime(car->getSpeed());
+			wt->wait();
+			car->setPosition(nextMove->getRow(), nextMove->getCol());
+			SendCar(taxista);
+			carNode = city->getNodeAt(car->getRow(), car->getCol());
+			if (carNode->getNeighbours().size() > 2) {
 				do {
-					if (car->getRow() + 1 < taxista->getMap()->getRows()) { // verifico se é posição do mapa
-						nextMove = city->getNodeAt(car->getRow() + 1, car->getCol()); // apanho a posição
-						if (!nextMove->isRoad()) { // verifico se é estrada
-							nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()]; // seleciono uma proxima posição
-							if (carNode->getNeighbours().size() == 1) { // verifico se a posição nao é a unica (no caso de ser um beco sem saida) para poder sair do while
+					nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+				} while (nextMove->getCol() == oldCol && nextMove->getRow() == oldRow);
+			}
+			else {
+				if (car->getCol() == oldCol && car->getRow() > oldRow) { //Moveu para a casa de baixo
+					do {
+						if (car->getRow() + 1 < taxista->getMap()->getRows()) { // verifico se é posição do mapa
+							nextMove = city->getNodeAt(car->getRow() + 1, car->getCol()); // apanho a posição
+							if (!nextMove->isRoad()) { // verifico se é estrada
+								nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()]; // seleciono uma proxima posição
+								if (carNode->getNeighbours().size() == 1) { // verifico se a posição nao é a unica (no caso de ser um beco sem saida) para poder sair do while
+									break;
+								}
+							}
+						}
+						else {
+							nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()]; //obtenho nova posição caso a posição anterior exceda o mapa
+							if (carNode->getNeighbours().size() == 1) { // sai do while se for um beco sem saida
 								break;
 							}
 						}
-					}
-					else {
-						nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()]; //obtenho nova posição caso a posição anterior exceda o mapa
-						if (carNode->getNeighbours().size() == 1) { // sai do while se for um beco sem saida
-							break;
-						}
-					}
-				} while (nextMove->getCol() == carNode->getCol() && nextMove->getRow() == carNode->getRow()); // precorro o codigo enquando a nova posição nao for diferente da velha
-			}
-			else if (car->getCol() == oldCol && car->getRow() < oldRow) { // moveu para a casa de cima
-				do {
-					if (car->getRow() - 1 > 0) {
-						nextMove = city->getNodeAt(car->getRow() - 1, car->getCol());
-						if (!nextMove->isRoad()) {
+					} while (nextMove->getCol() == carNode->getCol() && nextMove->getRow() == carNode->getRow()); // precorro o codigo enquando a nova posição nao for diferente da velha
+				}
+				else if (car->getCol() == oldCol && car->getRow() < oldRow) { // moveu para a casa de cima
+					do {
+						if (car->getRow() - 1 > 0) {
+							nextMove = city->getNodeAt(car->getRow() - 1, car->getCol());
+							if (!nextMove->isRoad()) {
 								nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
 								if (carNode->getNeighbours().size() == 1) {
 									break;
 								}
+							}
 						}
-					}
-					else {
-						nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
-						if (carNode->getNeighbours().size() == 1) {
-							break;
-						}
-					}
-				} while (nextMove->getCol() == carNode->getCol() && nextMove->getRow() == carNode->getRow());
-			}
-			else if (car->getCol() > oldCol && car->getRow() == oldRow) { // moveu para a direita
-				do {
-					if(car->getCol() + 1 < taxista->getMap()->getCols()){
-						nextMove = city->getNodeAt(car->getRow(), car->getCol() + 1 );
-						if (!nextMove->isRoad()) {
+						else {
 							nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
 							if (carNode->getNeighbours().size() == 1) {
 								break;
 							}
 						}
-					}
-					else {
-						nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
-						if (carNode->getNeighbours().size() == 1) {
-							break;
+					} while (nextMove->getCol() == carNode->getCol() && nextMove->getRow() == carNode->getRow());
+				}
+				else if (car->getCol() > oldCol && car->getRow() == oldRow) { // moveu para a direita
+					do {
+						if (car->getCol() + 1 < taxista->getMap()->getCols()) {
+							nextMove = city->getNodeAt(car->getRow(), car->getCol() + 1);
+							if (!nextMove->isRoad()) {
+								nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+								if (carNode->getNeighbours().size() == 1) {
+									break;
+								}
+							}
 						}
-					}
-				} while (nextMove->getCol() == carNode->getCol() && nextMove->getRow() == carNode->getRow());
-			}
-			else  if (car->getCol() < oldCol && car->getRow() == oldRow) { //moveu para a esquerda
-				do {
-					if (car->getCol() - 1 > 0) {
-						nextMove = city->getNodeAt(car->getRow(), car->getCol() - 1);
-						if (!nextMove->isRoad()) {
+						else {
 							nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
 							if (carNode->getNeighbours().size() == 1) {
 								break;
 							}
 						}
-					}
-					else {
-						nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
-						if (carNode->getNeighbours().size() == 1) {
-							break;
+					} while (nextMove->getCol() == carNode->getCol() && nextMove->getRow() == carNode->getRow());
+				}
+				else  if (car->getCol() < oldCol && car->getRow() == oldRow) { //moveu para a esquerda
+					do {
+						if (car->getCol() - 1 > 0) {
+							nextMove = city->getNodeAt(car->getRow(), car->getCol() - 1);
+							if (!nextMove->isRoad()) {
+								nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+								if (carNode->getNeighbours().size() == 1) {
+									break;
+								}
+							}
 						}
-					}
-				} while (nextMove->getCol() == carNode->getCol() && nextMove->getRow() == carNode->getRow());
+						else {
+							nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+							if (carNode->getNeighbours().size() == 1) {
+								break;
+							}
+						}
+					} while (nextMove->getCol() == carNode->getCol() && nextMove->getRow() == carNode->getRow());
+				}
+				else { // esta parado na mesma posição que antes
+					nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+				}
 			}
-			else { // esta parado na mesma posição que antes
+			ReleaseMutex(hMutex);
+		}
+		else { // SMART MOVE
+			WaitForSingleObject(hMutex, INFINITE);
+			do {
+				if (taxista->getSmartPath()) {
+					taxista->resetSmartPath();
+				}
+				int row = taxista->move.dest_row;
+				int col = taxista->move.dest_col;
+				Node* src = taxista->getNodeAt(taxista->car->getRow(), taxista->car->getCol());
+				Node* dest = taxista->getNodeAt(row, col);
+				BreadthFirstSearch* bfs = new BreadthFirstSearch(taxista->getMap());
+				_tprintf(TEXT("\nA calcular caminho até <%d,%d>..."), row, col);
+				_tprintf(TEXT("\nCOMMAND: "));
+				BESTPATH path = bfs->getBestPath(src, dest);
+				INT i = 1;
+				LONGLONG speed = car->getSpeed();
+				_tprintf(TEXT("\nA ir até <%d,%d>..."), row, col);
+				_tprintf(TEXT("\nCOMMAND: "));
+				do {
+					if (speed != car->getSpeed() || i == 1) {
+						//_tprintf(TEXT("Tempo para o destino: %f\n"), (FLOAT)((path.path.size()- 1 - i) * (LONG)car->getSpeed()) / 10000000.f);
+					}
+					speed = car->getSpeed();
+					wt->updateTime(speed);
+					wt->wait();
+					car->setPosition(path.path[i]->getRow(), path.path[i]->getCol());
+					SendCar(taxista);
+					i++;
+				} while ((i < path.path.size() - 1 ) && (!taxista->getSmartPath()));
+				_tprintf(TEXT("\nCheguei a posição desejada! <%d,%d>"), row, col);
+				_tprintf(TEXT("\nCOMMAND: "));
+				taxista->enableRandomMove();
+				carNode = dest;
 				nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
-			}
+			} while (taxista->getSmartPath());
+			ReleaseMutex(hMutex);
 		}
 	}
 	delete wt;
+	CloseHandle(hMutex);
 	return EXIT_SUCCESS;
 }
 
@@ -201,8 +252,8 @@ DWORD WINAPI GetCarDataThread(LPVOID lpParam) {
 
 DWORD WINAPI CommandsThread(LPVOID lpParam) {
 	TCHAR command[COMMAND_SIZE] = TEXT("");
-	TCHAR* pch;
-	TCHAR* something;
+	TCHAR* pch = new TCHAR[COMMAND_SIZE];
+	TCHAR* something = new TCHAR[COMMAND_SIZE];
 	Taxista* taxista = (Taxista*)lpParam;
 	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 5);
 	while (!taxista->isExit()) {
@@ -212,12 +263,20 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 				taxista->dll->log((TCHAR*)TEXT("Ocorreu um erro a ler o comando inserido!"), TYPE::ERRO);
 			}
 		} while (sizeof(command) < 1);
+		int spaces = 0;
 		for (int i = 0; i < sizeof(command) && command[i]; i++)
 		{
 			if (command[i] == '\n')
 				command[i] = '\0';
+			if (command[i] == ' ')
+				spaces++;
 		}
-		pch = _tcstok_s(command, TEXT(" "), &something);
+		if (spaces > 0) {
+			pch = _tcstok_s(command, TEXT(" "), &something);
+		}
+		else {
+			pch = command;
+		}
 		if (_tcscmp(pch, TEXT("exit")) == 0) {
 			taxista->setExit(true);
 			_tprintf(TEXT("[SHUTDOWN] A Sair...\n"));
@@ -237,36 +296,44 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 			pch = _tcstok_s(something, TEXT(" "), &something);
 
 			int val = NQ;
-
-			try {
-				val = stoi(pch);
+			if (pch != NULL) {
+				try {
+					val = stoi(pch);
+				}
+				catch (invalid_argument) {
+					taxista->dll->log((TCHAR*)TEXT("Valor inválido!"), TYPE::WARNING);
+					continue;
+				}
+				catch (out_of_range) {
+					taxista->dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
+					continue;
+				}
+				taxista->car->setNq(val);
 			}
-			catch (invalid_argument) {
-				taxista->dll->log((TCHAR*)TEXT("Valor inválido!"), TYPE::WARNING);
-				continue;
+			else {
+				taxista->dll->log((TCHAR*)TEXT("O comando inserido não existe!"), TYPE::WARNING);
 			}
-			catch (out_of_range) {
-				taxista->dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
-				continue;
-			}
-			taxista->car->setNq(val);
 		}
 		else if (_tcscmp(pch, TEXT("autopicker")) == 0) {
 
 			pch = _tcstok_s(something, TEXT(" "), &something);
+			if (pch != NULL) {
+				if (_tcscmp(pch, TEXT("on")) == 0) {
+					taxista->dll->log((TCHAR*)TEXT("[AUTOPICKER] Ativado!"), TYPE::NOTIFICATION);
+					taxista->car->setAutopicker(true);
 
-			if (_tcscmp(pch, TEXT("on")) == 0) {
-				taxista->dll->log((TCHAR*)TEXT("[AUTOPICKER] Ativado!"), TYPE::WARNING);
-				taxista->car->setAutopicker(true);
-
-			}
-			else if (_tcscmp(pch, TEXT("off")) == 0) {
-				taxista->dll->log((TCHAR*)TEXT("[AUTOPICKER] Desativado!"), TYPE::WARNING);
-				taxista->car->setAutopicker(false);
+				}
+				else if (_tcscmp(pch, TEXT("off")) == 0) {
+					taxista->dll->log((TCHAR*)TEXT("[AUTOPICKER] Desativado!"), TYPE::NOTIFICATION);
+					taxista->car->setAutopicker(false);
+				}
+				else {
+					taxista->dll->log((TCHAR*)TEXT("A Opção inserida não existe!"), TYPE::WARNING);
+					continue;
+				}
 			}
 			else {
-				taxista->dll->log((TCHAR*)TEXT("A Opção inserida não existe!"), TYPE::WARNING);
-				continue;
+				taxista->dll->log((TCHAR*)TEXT("O comando inserido não existe!"), TYPE::WARNING);
 			}
 		}
 		else if (_tcscmp(pch, TEXT("transportar")) == 0) {
@@ -274,21 +341,77 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 			pch = _tcstok_s(something, TEXT(" "), &something);
 
 			int traveler = 0;
-
-			try {
-				traveler = stoi(pch);
+			if (pch != NULL) {
+				try {
+					traveler = stoi(pch);
+				}
+				catch (invalid_argument) {
+					taxista->dll->log((TCHAR*)TEXT("Valor inválido!"), TYPE::WARNING);
+					break;
+				}
+				catch (out_of_range) {
+					taxista->dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
+					break;
+				}
+				taxista->dll->log((TCHAR*)(TEXT("Vou até ao passageiro #%s"), pch), TYPE::NOTIFICATION);
 			}
-			catch (invalid_argument) {
-				taxista->dll->log((TCHAR*)TEXT("Valor inválido!"), TYPE::WARNING);
-				break;
+			else {
+				taxista->dll->log((TCHAR*)TEXT("O comando inserido não existe!"), TYPE::WARNING);
 			}
-			catch (out_of_range) {
-				taxista->dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
-				break;
-			}
-			taxista->dll->log((TCHAR*)(TEXT("Vou até ao passageiro #%s"), pch), TYPE::NOTIFICATION);
 
 			// IMPLEMENTAR CODIGO DE TRANSPORTE DO PASSAGEIRO
+		}
+		else if (_tcscmp(pch, TEXT("goto")) == 0) {
+			pch = _tcstok_s(something, TEXT(" "), &something);
+			int row;
+			int col;
+			if (pch != NULL) {
+				try {
+					row = stoi(pch);
+				}
+				catch (invalid_argument) {
+					taxista->dll->log((TCHAR*)TEXT("Valor inválido!"), TYPE::WARNING);
+					continue;
+				}
+				catch (out_of_range) {
+					taxista->dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
+					continue;
+				}
+				pch = _tcstok_s(something, TEXT(" "), &something);
+				if (pch != NULL) {
+					try {
+						col = stoi(pch);
+					}
+					catch (invalid_argument) {
+						taxista->dll->log((TCHAR*)TEXT("Valor inválido!"), TYPE::WARNING);
+						continue;
+					}
+					catch (out_of_range) {
+						taxista->dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
+						continue;
+					}
+					_tprintf(TEXT("COLS: %d ROWS: %d\n"), taxista->getMap()->getCols(), taxista->getMap()->getRows());
+					if (row > taxista->getMap()->getRows() || row < 0 || col > taxista->getMap()->getCols() || col < 0) {
+						taxista->dll->log((TCHAR*)TEXT("As coordenadas inseridas não pertencem ao mapa!"), TYPE::WARNING);
+					}
+					else if (!taxista->getNodeAt(row, col)->isRoad()) {
+						taxista->dll->log((TCHAR*)TEXT("As coordenadas inseridas não são uma estrada, isto é um taxi não um 4x4!"), TYPE::WARNING);
+					}
+					else {
+						taxista->move.dest_row = row;
+						taxista->move.dest_col = col;
+						if (taxista->isRandomMove()) {
+							taxista->disableRandomMove();
+						}
+						else {
+							taxista->resetSmartPath();
+						}
+					}
+				}
+			}
+			if (pch == NULL) {
+				taxista->dll->log((TCHAR*)TEXT("O comando inserido não existe!"), TYPE::WARNING);
+			}
 		}
 		else {
 			taxista->dll->log((TCHAR*)TEXT("O comando inserido não existe!"), TYPE::WARNING);

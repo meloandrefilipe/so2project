@@ -2,6 +2,10 @@
 
 Taxista::Taxista()
 {
+	this->move.dest_col = 0;
+	this->move.dest_row = 0;
+	this->randomMove = true;
+	this->smartPath = false;
 	this->townMap = nullptr;
 	this->car = nullptr;
 	this->exit = false;
@@ -48,6 +52,11 @@ void Taxista::buildMapText()
 	_tcscpy_s(this->textmap, this->mapSize, map.str().c_str());
 }
 
+Node* Taxista::getNodeAt(int row, int col)
+{
+	return this->townMap->getNodeAt(row,col);
+}
+
 TCHAR* Taxista::getMapText()
 {
 	WaitForSingleObject(this->hMutex, INFINITE);
@@ -65,6 +74,31 @@ void Taxista::setMap(TownMap* m)
 void Taxista::setMapSize(int size)
 {
 	this->mapSize = size;
+}
+
+BOOL Taxista::isRandomMove() const
+{
+	return this->randomMove;
+}
+
+void Taxista::enableRandomMove()
+{
+	this->randomMove = true;
+}
+
+void Taxista::disableRandomMove()
+{
+	this->randomMove = false;
+}
+
+void Taxista::resetSmartPath()
+{
+	this->smartPath = !this->smartPath;
+}
+
+BOOL Taxista::getSmartPath() const
+{
+	return this->smartPath;
 }
 
 BOOL Taxista::isExit() const

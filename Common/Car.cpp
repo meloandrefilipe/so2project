@@ -69,7 +69,7 @@ BOOL Car::isSamePlate(TCHAR* plate)
 	return false;
 }
 
-int Car::getSpeed() const
+LONGLONG Car::getSpeed() const
 {
 	return this->speed;
 }
@@ -101,13 +101,13 @@ TAXI Car::toStruct()
 void Car::speedUp()
 {
 	WaitForSingleObject(this->hMutex, INFINITE);
-	if (this->getSpeed() > 1) {
+	if (this->getSpeed() < MAX_SPEED) {
 		this->setSpeed(this->getSpeed() - SPEED_SHIFTER);
-		_tprintf(TEXT("A velocidade do taxi foi aumentada para %d\n"), MAX_SPEED - this->getSpeed());
+		_tprintf(TEXT("A velocidade do taxi foi aumentada em +0.25 casas por segundo\n"));
 	}
 	else {
-		this->setSpeed(1);
-		_tprintf(TEXT("A velocidade do taxi está no maximo! %d\n"), MAX_SPEED);
+		this->setSpeed(MAX_SPEED);
+		_tprintf(TEXT("A velocidade do taxi está no maximo! (0.25 casas por segundo)\n"));
 
 	}
 	ReleaseMutex(this->hMutex);
@@ -116,18 +116,18 @@ void Car::speedUp()
 void Car::speedDown()
 {
 	WaitForSingleObject(this->hMutex, INFINITE);
-	if (this->getSpeed() < MAX_SPEED) {
-		this->setSpeed(this->getSpeed() +  SPEED_SHIFTER);
-		_tprintf(TEXT("A velocidade do taxi foi diminuida para %d\n"), MAX_SPEED - this->getSpeed());
+	if (this->getSpeed() > MIN_SPEED) {
+		this->setSpeed(this->getSpeed() + SPEED_SHIFTER);
+		_tprintf(TEXT("A velocidade do taxi foi diminuida em -0.25 casas por segundo\n"));
 	}
 	else {
-		this->setSpeed(MAX_SPEED);
-		_tprintf(TEXT("A velocidade do taxi está no mínimo! %d\n"), 1);
+		this->setSpeed(MIN_SPEED);
+		_tprintf(TEXT("A velocidade do taxi está no mínimo! (0.5 casas por segundo)\n"));
 	}
 	ReleaseMutex(this->hMutex);
 }
 
-void Car::setSpeed(int speed)
+void Car::setSpeed(LONGLONG speed)
 {
 	WaitForSingleObject(this->hMutex, INFINITE);
 	this->speed = speed;

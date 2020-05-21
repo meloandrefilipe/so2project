@@ -52,11 +52,11 @@ void TownMap::buildTown()
         // Reset nas vars de coluna e linha
         if (ch == '\n') {
             row++;
-            this->cols = col;
+            this->cols = col -1;
             col = 0;
         }
     }
-    this->rows = row;
+    this->rows = row -1;
     for (int i = 0; i < nodes.size(); i++) {
         if (nodes[i]->isRoad()) {
             for (int j = 0; j < nodes.size(); j++) {
@@ -94,16 +94,17 @@ void TownMap::buildTownFromText(TCHAR* textmap)
             else {
                 nodes.push_back(new Node(row, col, false));
             }
+            _tprintf(TEXT("ROW: %d COL: %d\n"),row, col);
             col++;
         }
         // Reset nas vars de coluna e linha
         if (map[i] == '\n') {
             row++;
-            this->cols = col;
+            this->cols = col -1;
             col = 0;
         }
     }
-    this->rows = row;
+    this->rows = row -1;
     for (int i = 0; i < nodes.size(); i++) {
         if (nodes[i]->isRoad()) {
             for (int j = 0; j < nodes.size(); j++) {
