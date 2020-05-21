@@ -7,6 +7,7 @@ Central::Central()
 	this->exit = false;
 	this->textCleanMap = nullptr;
 	this->textFilledMap = nullptr;
+	this->sizeMap = 0;
 	this->hMutex = CreateMutex(NULL, FALSE, NULL);
 	if (this->hMutex == NULL)
 	{

@@ -11,6 +11,8 @@ class Taxista
 	TownMap* townMap;
 	BOOL exit;
 	TCHAR* textmap;
+	int mapSize;
+	HANDLE hMutex;
 public:
 	DLLProfessores* dll;
 	Car* car;
@@ -21,7 +23,7 @@ public:
 
 	TCHAR* getMapText();
 	void setMap(TownMap* m);
-
+	void setMapSize(int size);
 	BOOL isExit() const;
 	void setExit(BOOL exit);
 	Node* getRandomRoad();

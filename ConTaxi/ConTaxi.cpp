@@ -19,13 +19,13 @@ int _tmain(int argc ,TCHAR* argv[]) {
 		taxista->dll->log((TCHAR*)TEXT("Não foi possivel criar o evento para encerrar!"), TYPE::ERRO);
 		return EXIT_FAILURE;
 	}
+
 	WaitForSingleObject(hEventCanBoot, INFINITE);
 	CloseHandle(hEventCanBoot);
 	_tprintf(TEXT("ConTaxi\n"));
 	
 	closeThread = CreateThread(NULL, 0, CloseThread, taxista, 0, &idCloseThread);
 	getMapThread = CreateThread(NULL, 0, GetMapThread, taxista, 0, &idGetMapThread);
-	_tprintf(TEXT("A Espera...\n"));
 	WaitForSingleObject(getMapThread, INFINITE);
 	getCarDataThread = CreateThread(NULL, 0, GetCarDataThread, taxista, 0, &idGetCarDataThread);
 

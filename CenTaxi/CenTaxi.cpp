@@ -169,7 +169,7 @@ DWORD WINAPI CommunicationThread(LPVOID lpParam) {
     central->dll->regist((TCHAR*)SEMAPHORE_CAN_WRITE_CENCON, 3);
     central->dll->regist((TCHAR*)SEMAPHORE_CAN_READ_CENCON, 3);
 
-    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, SHAREDMEMORY_SIZE, SHAREDMEMORY_CEN_CON_ZONE);
+    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, sizeof(TAXI), SHAREDMEMORY_CEN_CON_ZONE);
     
 
     if (hFileMapping == NULL) {
@@ -245,7 +245,7 @@ DWORD WINAPI PlateValidatorThread(LPVOID lpParam) {
     central->dll->regist((TCHAR*)SEMAPHORE_PLATE_VALIDATOR_WRITE, 3);
     central->dll->regist((TCHAR*)SEMAPHORE_PLATE_VALIDATOR_CONTAXI, 3);
 
-    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, SHAREDMEMORY_SIZE, SHAREDMEMORY_PLATE_VALIDATION);
+    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, sizeof(PLATE), SHAREDMEMORY_PLATE_VALIDATION);
     if (hFileMapping == NULL) {
         central->dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping!"), TYPE::ERRO);
         CloseHandle(sCanWrite);

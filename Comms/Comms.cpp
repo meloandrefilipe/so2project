@@ -18,7 +18,6 @@ DWORD SendCar(Taxista* taxista) {
 	}
 	dll->regist((TCHAR*)SEMAPHORE_CAN_WRITE_CENCON, 3);
 	dll->regist((TCHAR*)SEMAPHORE_CAN_READ_CENCON, 3);
-	dll->regist((TCHAR*)SEMAPHORE_CAN_CONTAXI_CENCON, 3);
 	hFileMapping = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, SHAREDMEMORY_CEN_CON_ZONE);
 
 	if (hFileMapping == NULL) {
@@ -156,9 +155,9 @@ DWORD getMap(Taxista* taxista) {
 		CloseHandle(hFileMapping);
 		return EXIT_FAILURE;
 	}
-	_tprintf(TEXT("A Espera 2...\n"));
-	WaitForSingleObject(sCanSize, INFINITE);
 
+	WaitForSingleObject(sCanSize, INFINITE);
+	taxista->setMapSize(pBuf->size);
 	pMap = (LPTSTR)MapViewOfFile(hFileMappingMap, FILE_MAP_ALL_ACCESS, 0, 0, pBuf->size);
 	if (pMap == NULL) {
 		taxista->dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro! PMAP"), TYPE::ERRO);
@@ -173,7 +172,6 @@ DWORD getMap(Taxista* taxista) {
 	taxista->dll->regist((TCHAR*)SHAREDMEMORY_CONTAXI_MAP_SIZE, 7);
 	taxista->dll->regist((TCHAR*)SHAREDMEMORY_CONTAXI_MAP, 7);
 
-	_tprintf(TEXT("A Espera 3...\n"));
 	ReleaseSemaphore(sCanWrite, 1, NULL);
 	WaitForSingleObject(sCanRead, INFINITE);
 	taxista->setMap(new TownMap((TCHAR*)pMap));

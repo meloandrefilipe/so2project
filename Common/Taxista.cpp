@@ -5,15 +5,24 @@ Taxista::Taxista()
 	this->townMap = nullptr;
 	this->car = nullptr;
 	this->exit = false;
-	this->textmap = new TCHAR[MAP_SHARE_SIZE];
+	this->textmap = nullptr;
+	this->mapSize = 0;
 	this->dll = new DLLProfessores();
+	this->hMutex = CreateMutex(NULL, FALSE, NULL);
+	if (this->hMutex == NULL)
+	{
+		_tprintf(TEXT("Taxita CreateMutex error: %d\n"), GetLastError());
+		return;
+	}
 }
 
 Taxista::~Taxista()
 {
 	delete this->dll;
 	delete this->townMap;
+	delete this->textmap;
 	delete this->car;
+	CloseHandle(this->hMutex);
 }
 
 void Taxista::buildMapText()
@@ -35,18 +44,27 @@ void Taxista::buildMapText()
 		}
 
 	}
-	_tcscpy_s(this->textmap, MAP_SHARE_SIZE, map.str().c_str());
+	this->textmap = new TCHAR[this->mapSize];
+	_tcscpy_s(this->textmap, this->mapSize, map.str().c_str());
 }
 
 TCHAR* Taxista::getMapText()
 {
+	WaitForSingleObject(this->hMutex, INFINITE);
 	this->buildMapText();
+	ReleaseMutex(this->hMutex);
+
 	return this->textmap;
 }
 
 void Taxista::setMap(TownMap* m)
 {
 	this->townMap = m;
+}
+
+void Taxista::setMapSize(int size)
+{
+	this->mapSize = size;
 }
 
 BOOL Taxista::isExit() const
@@ -61,6 +79,8 @@ void Taxista::setExit(BOOL exit)
 
 Node* Taxista::getRandomRoad()
 {
+	WaitForSingleObject(this->hMutex, INFINITE);
+	
 	vector<Node*> nodes = this->townMap->getNodes();
 	vector<Node*> temp;
 
@@ -73,6 +93,7 @@ Node* Taxista::getRandomRoad()
 	int size = (int)temp.size();
 	srand((unsigned int)time(NULL));
 	int select = (int)rand() % size;
+	ReleaseMutex(this->hMutex);
 	return temp[select];
 }
 
