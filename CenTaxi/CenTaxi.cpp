@@ -104,9 +104,11 @@ DWORD WINAPI MainMenuThread(LPVOID lpParam) {
 
     while (!central->isExit()) {
         _tprintf(TEXT("COMMAND: "));
-        if (fgetws(command, sizeof(command), stdin) == NULL) {
-            central->dll->log((TCHAR *)TEXT("Ocorreu um erro a ler o comando inserido!"), TYPE::ERRO);
-        }
+        do {
+            if (fgetws(command, sizeof(command), stdin) == NULL) {
+                central->dll->log((TCHAR*)TEXT("Ocorreu um erro a ler o comando inserido!"), TYPE::ERRO);
+            }
+        } while (sizeof(command) < 1);
         for (int i = 0; i < sizeof(command) && command[i]; i++){
             if (command[i] == '\n')
                 command[i] = '\0';
