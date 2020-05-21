@@ -14,5 +14,6 @@ public:
 	WaitableTimer(LONGLONG time);
 	~WaitableTimer();
 	DWORD wait();
+	void updateTime(LONGLONG time);
 };
 

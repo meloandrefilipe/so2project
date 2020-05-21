@@ -7,8 +7,9 @@
 #include <strsafe.h>
 #include "Core.h"
 
-#define SPEED_SHIFTER 0.5
-#define MAX_SPEED 3
+#define SPEED_SHIFTER 1
+#define MAX_SPEED 10
+#define DEFAULT_SPEED 5
 #define NQ 10
 
 class Car {
@@ -16,7 +17,7 @@ class Car {
 	int col;
 	int id;
 	int nq;
-	float speed;
+	int speed;
 	BOOL autopicker;
 	TCHAR * plate;
 	HANDLE hMutex;
@@ -31,13 +32,13 @@ public:
 	int getNq() const;
 	BOOL getAutopicker() const;
 	BOOL isSamePlate(TCHAR* plate);
-	float getSpeed() const;
+	int getSpeed() const;
 	TCHAR * getPlate();
 	TCHAR * toString();
 	TAXI toStruct();
 	void speedUp();
 	void speedDown();
-	void setSpeed(float speed);
+	void setSpeed(int speed);
 	void setNq(int nq);
 	void setAutopicker(BOOL val);
 	void setPosition(int row, int col);

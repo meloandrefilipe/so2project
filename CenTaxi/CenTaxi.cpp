@@ -119,7 +119,6 @@ DWORD WINAPI MainMenuThread(LPVOID lpParam) {
                 return EXIT_FAILURE;
             }
             SetEvent(hEventClose);
-            central->setExit(true);
 
             sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_CAN_READ_CENCON);
             if (sCanRead == NULL) {
@@ -132,6 +131,9 @@ DWORD WINAPI MainMenuThread(LPVOID lpParam) {
             CloseHandle(sCanRead);
             CloseHandle(hEventClose);
             _tprintf(TEXT("[SHUTDOWN] A Sair...\n"));
+            wt->wait();
+            central->setExit(true);
+            wt->updateTime(WAIT_ONE_SECOND);
             wt->wait();
             delete wt;
             delete central;

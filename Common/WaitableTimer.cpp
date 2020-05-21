@@ -43,3 +43,8 @@ DWORD WaitableTimer::wait()
     }
     return EXIT_SUCCESS;
 }
+
+void WaitableTimer::updateTime(LONGLONG time)
+{
+    this->liDueTime.QuadPart = time;
+}

@@ -6,7 +6,7 @@ Car::Car(int id, int row, int col, TCHAR * plate){
 	this->id = id;
 	this->col = col;
 	this->row = row;
-	this->speed = 1;
+	this->speed = DEFAULT_SPEED;
 	this->nq = NQ;
 	this->autopicker = true;
 	this->plate = new TCHAR[TAXI_PLATE_SIZE];
@@ -69,7 +69,7 @@ BOOL Car::isSamePlate(TCHAR* plate)
 	return false;
 }
 
-float Car::getSpeed() const
+int Car::getSpeed() const
 {
 	return this->speed;
 }
@@ -102,12 +102,12 @@ void Car::speedUp()
 {
 	WaitForSingleObject(this->hMutex, INFINITE);
 	if (this->getSpeed() > 1) {
-		this->setSpeed(this->getSpeed() - (float) SPEED_SHIFTER);
-		_tprintf(TEXT("A velocidade do taxi foi aumentada para %f\n"), this->getSpeed());
+		this->setSpeed(this->getSpeed() - SPEED_SHIFTER);
+		_tprintf(TEXT("A velocidade do taxi foi aumentada para %d\n"), MAX_SPEED - this->getSpeed());
 	}
 	else {
 		this->setSpeed(1);
-		_tprintf(TEXT("A velocidade do taxi está no maximo! %f\n"), this->getSpeed());
+		_tprintf(TEXT("A velocidade do taxi está no maximo! %d\n"), MAX_SPEED);
 
 	}
 	ReleaseMutex(this->hMutex);
@@ -117,17 +117,17 @@ void Car::speedDown()
 {
 	WaitForSingleObject(this->hMutex, INFINITE);
 	if (this->getSpeed() < MAX_SPEED) {
-		this->setSpeed(this->getSpeed() + (float) SPEED_SHIFTER);
-		_tprintf(TEXT("A velocidade do taxi foi diminuida para %f\n"), this->getSpeed());
+		this->setSpeed(this->getSpeed() +  SPEED_SHIFTER);
+		_tprintf(TEXT("A velocidade do taxi foi diminuida para %d\n"), MAX_SPEED - this->getSpeed());
 	}
 	else {
 		this->setSpeed(MAX_SPEED);
-		_tprintf(TEXT("A velocidade do taxi está no mínimo! %f\n"), this->getSpeed());
+		_tprintf(TEXT("A velocidade do taxi está no mínimo! %d\n"), 1);
 	}
 	ReleaseMutex(this->hMutex);
 }
 
-void Car::setSpeed(float speed)
+void Car::setSpeed(int speed)
 {
 	WaitForSingleObject(this->hMutex, INFINITE);
 	this->speed = speed;

@@ -81,7 +81,7 @@ typedef struct SHAREDMEMORY_TAXI {
 	int col;
 	int pid;
 	int nq;
-	float speed;
+	int speed;
 	BOOL autopicker;
 	TCHAR plate[TAXI_PLATE_SIZE];
 }TAXI;

@@ -65,10 +65,11 @@ DWORD WINAPI MoveCarThread(LPVOID lpParam) {
 	int oldCol = car->getCol();
 	Node* carNode = city->getNodeAt(car->getRow(), car->getCol());
 	Node* nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
-	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * (LONGLONG)car->getSpeed());
+	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * car->getSpeed());
 	while (!taxista->isExit()) {
 		oldRow = car->getRow();
 		oldCol = car->getCol();
+		wt->updateTime(WAIT_ONE_SECOND * car->getSpeed());
 		wt->wait();
 		car->setPosition(nextMove->getRow(), nextMove->getCol());
 		SendCar(taxista);
@@ -206,9 +207,11 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 5);
 	while (!taxista->isExit()) {
 		_tprintf(TEXT("COMMAND: "));
-		if (fgetws(command, sizeof(command), stdin) == NULL) {
-			taxista->dll->log((TCHAR*)TEXT("Ocorreu um erro a ler o comando inserido!"), TYPE::ERRO);
-		}
+		do {
+			if (fgetws(command, sizeof(command), stdin) == NULL) {
+				taxista->dll->log((TCHAR*)TEXT("Ocorreu um erro a ler o comando inserido!"), TYPE::ERRO);
+			}
+		} while (sizeof(command) < 1);
 		for (int i = 0; i < sizeof(command) && command[i]; i++)
 		{
 			if (command[i] == '\n')
