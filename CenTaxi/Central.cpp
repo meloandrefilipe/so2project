@@ -3,20 +3,27 @@
 Central::Central()
 {
 	this->townMap = new TownMap();
+	this->dll = new DLLProfessores();
 	this->exit = false;
-	this->textMap = new TCHAR[MAP_SHARE_SIZE];
+	this->textCleanMap = nullptr;
+	this->textFilledMap = nullptr;
 	this->hMutex = CreateMutex(NULL, FALSE, NULL);
 	if (this->hMutex == NULL)
 	{
 		_tprintf(TEXT("Central CreateMutex error: %d\n"), GetLastError());
 		return;
 	}
+	WaitForSingleObject(this->hMutex, INFINITE);
+	this->buildCleanMap();
+	ReleaseMutex(this->hMutex);
 }
 
 Central::~Central()
 {
+	delete this->dll;
 	delete this->townMap;
-	delete this->textMap;
+	delete this->textCleanMap;
+	delete this->textFilledMap;
 	CloseHandle(this->hMutex);
 }
 
@@ -25,6 +32,10 @@ int Central::getSizeCars() const
 	return (int)this->cars.size();
 }
 
+int Central::getSizeMap() const
+{
+	return this->sizeMap;
+}
 void Central::addCar(Car* car)
 {
 	this->cars.push_back(car);
@@ -58,7 +69,7 @@ vector<Car*> Central::getCars()
 	return this->cars;
 }
 
-void Central::buildMapToShare()
+void Central::buildFilledMap()
 {
 	int cols = this->townMap->getCols();
 	vector<Node*> nodes = this->townMap->getNodes();
@@ -91,7 +102,8 @@ void Central::buildMapToShare()
 		}
 	}
 
-	_tcscpy_s(this->textMap, MAP_SHARE_SIZE, map.str().c_str());
+	this->textFilledMap = new TCHAR[this->sizeMap];
+	_tcscpy_s(this->textFilledMap, this->sizeMap, map.str().c_str());
 }
 
 void Central::buildCleanMap()
@@ -114,8 +126,10 @@ void Central::buildCleanMap()
 		}
 	}
 
-	_tcscpy_s(this->textMap, MAP_SHARE_SIZE, map.str().c_str());
-
+	int size = (int)(_tcslen(map.str().c_str()) * sizeof(TCHAR));
+	this->textCleanMap = new TCHAR[size];
+	_tcscpy_s(this->textCleanMap, size, map.str().c_str());
+	this->sizeMap = size;
 }
 
 TownMap* Central::getTownMap()
@@ -123,20 +137,17 @@ TownMap* Central::getTownMap()
 	return this->townMap;
 }
 
-TCHAR* Central::getMapToShare()
+TCHAR* Central::getFilledMap()
 {
 	WaitForSingleObject(this->hMutex, INFINITE);
-	this->buildMapToShare();
+	this->buildFilledMap();
 	ReleaseMutex(this->hMutex);
-	return this->textMap;
+	return this->textFilledMap;
 }
 
 TCHAR* Central::getCleanMap()
 {
-	WaitForSingleObject(this->hMutex, INFINITE);
-	this->buildCleanMap();
-	ReleaseMutex(this->hMutex);
-	return this->textMap;
+	return this->textCleanMap;
 
 }
 

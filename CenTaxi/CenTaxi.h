@@ -8,8 +8,6 @@
 #include <fcntl.h>
 #include <vector>
 #include <io.h>
-#include "WaitableTimer.h"
-#include "DLLProfessores.h"
 #include "Central.h"
 
 

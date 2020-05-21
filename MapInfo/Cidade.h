@@ -8,14 +8,13 @@
 #include <vector>
 #include <io.h>
 #include "WaitableTimer.h"
-#include "DLLProfessores.h"
 
 class Cidade
 {
 	BOOL exit;
 
-
 public:
+	DLLProfessores* dll;
 	Cidade();
 	~Cidade();
 	BOOL isExit() const;

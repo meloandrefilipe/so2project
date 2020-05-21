@@ -9,21 +9,27 @@ int _tmain(int argc ,TCHAR* argv[]) {
 	_setmode(_fileno(stderr), _O_WTEXT);
 #endif
 	DWORD idCommandsThread, idCommunicationThread, idCloseThread, idGetCarDataThread, idGetMapThread, idMoveCarThread;
-	HANDLE commandsThread, communicationThread, closeThread, getCarDataThread, getMapThread, moveCarThread;
+	HANDLE hEventCanBoot,commandsThread, communicationThread, closeThread, getCarDataThread, getMapThread, moveCarThread;
 
 	Taxista* taxista = new Taxista();
-	DLLProfessores* dll = new DLLProfessores();
 
-	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND);
+
+	hEventCanBoot = CreateEvent(NULL, TRUE, FALSE, EVENT_BOOT_ALL);
+	if (hEventCanBoot == NULL) {
+		taxista->dll->log((TCHAR*)TEXT("Não foi possivel criar o evento para encerrar!"), TYPE::ERRO);
+		return EXIT_FAILURE;
+	}
+	WaitForSingleObject(hEventCanBoot, INFINITE);
+	CloseHandle(hEventCanBoot);
+	_tprintf(TEXT("ConTaxi\n"));
+	
 	closeThread = CreateThread(NULL, 0, CloseThread, taxista, 0, &idCloseThread);
 	getMapThread = CreateThread(NULL, 0, GetMapThread, taxista, 0, &idGetMapThread);
+	_tprintf(TEXT("A Espera...\n"));
 	WaitForSingleObject(getMapThread, INFINITE);
-	delete wt;
 	getCarDataThread = CreateThread(NULL, 0, GetCarDataThread, taxista, 0, &idGetCarDataThread);
+
 	WaitForSingleObject(getCarDataThread, INFINITE);
-
-
-
 
 	moveCarThread = CreateThread(NULL, 0, MoveCarThread, taxista, 0, &idMoveCarThread);
 	commandsThread = CreateThread(NULL, 0, CommandsThread, taxista, 0, &idCommandsThread);
@@ -31,8 +37,7 @@ int _tmain(int argc ,TCHAR* argv[]) {
 
 
 	if (commandsThread == NULL || communicationThread == NULL || closeThread == NULL || moveCarThread == NULL) {
-		dll->log((TCHAR*)TEXT("Não foi possivel criar a Thread!"), TYPE::ERRO);
-		delete dll;
+		taxista->dll->log((TCHAR*)TEXT("Não foi possivel criar a Thread!"), TYPE::ERRO);
 		return EXIT_FAILURE;
 	}
 	
@@ -47,7 +52,6 @@ int _tmain(int argc ,TCHAR* argv[]) {
 	CloseHandle(closeThread);
 	CloseHandle(communicationThread);
 
-	delete dll;
 	return EXIT_SUCCESS;
 }
 
@@ -61,11 +65,11 @@ DWORD WINAPI MoveCarThread(LPVOID lpParam) {
 	int oldCol = car->getCol();
 	Node* carNode = city->getNodeAt(car->getRow(), car->getCol());
 	Node* nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
-
+	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * (LONGLONG)car->getSpeed());
 	while (!taxista->isExit()) {
 		oldRow = car->getRow();
 		oldCol = car->getCol();
-		WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * (LONGLONG)car->getSpeed());
+		wt->wait();
 		car->setPosition(nextMove->getRow(), nextMove->getCol());
 		SendCar(taxista);
 		carNode = city->getNodeAt(car->getRow(), car->getCol());
@@ -155,7 +159,8 @@ DWORD WINAPI MoveCarThread(LPVOID lpParam) {
 				nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
 			}
 		}
-	}	
+	}
+	delete wt;
 	return EXIT_SUCCESS;
 }
 
@@ -198,12 +203,11 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 	TCHAR* pch;
 	TCHAR* something;
 	Taxista* taxista = (Taxista*)lpParam;
-	DLLProfessores* dll = new DLLProfessores();
-
+	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 5);
 	while (!taxista->isExit()) {
 		_tprintf(TEXT("COMMAND: "));
 		if (fgetws(command, sizeof(command), stdin) == NULL) {
-			dll->log((TCHAR*)TEXT("Ocorreu um erro a ler o comando inserido!"), TYPE::ERRO);
+			taxista->dll->log((TCHAR*)TEXT("Ocorreu um erro a ler o comando inserido!"), TYPE::ERRO);
 		}
 		for (int i = 0; i < sizeof(command) && command[i]; i++)
 		{
@@ -212,10 +216,11 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 		}
 		pch = _tcstok_s(command, TEXT(" "), &something);
 		if (_tcscmp(pch, TEXT("exit")) == 0) {
-			delete dll;
 			taxista->setExit(true);
 			_tprintf(TEXT("[SHUTDOWN] A Sair...\n"));
-			WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 5);
+			wt->wait();
+			delete wt;
+			delete taxista;
 			exit(EXIT_SUCCESS);
 		}
 		else if (_tcscmp(pch, TEXT("acelerar")) == 0) {
@@ -234,11 +239,11 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 				val = stoi(pch);
 			}
 			catch (invalid_argument) {
-				dll->log((TCHAR*)TEXT("Valor inválido!"), TYPE::WARNING);
+				taxista->dll->log((TCHAR*)TEXT("Valor inválido!"), TYPE::WARNING);
 				continue;
 			}
 			catch (out_of_range) {
-				dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
+				taxista->dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
 				continue;
 			}
 			taxista->car->setNq(val);
@@ -248,16 +253,16 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 			pch = _tcstok_s(something, TEXT(" "), &something);
 
 			if (_tcscmp(pch, TEXT("on")) == 0) {
-				dll->log((TCHAR*)TEXT("[AUTOPICKER] Ativado!"), TYPE::WARNING);
+				taxista->dll->log((TCHAR*)TEXT("[AUTOPICKER] Ativado!"), TYPE::WARNING);
 				taxista->car->setAutopicker(true);
 
 			}
 			else if (_tcscmp(pch, TEXT("off")) == 0) {
-				dll->log((TCHAR*)TEXT("[AUTOPICKER] Desativado!"), TYPE::WARNING);
+				taxista->dll->log((TCHAR*)TEXT("[AUTOPICKER] Desativado!"), TYPE::WARNING);
 				taxista->car->setAutopicker(false);
 			}
 			else {
-				dll->log((TCHAR*)TEXT("A Opção inserida não existe!"), TYPE::WARNING);
+				taxista->dll->log((TCHAR*)TEXT("A Opção inserida não existe!"), TYPE::WARNING);
 				continue;
 			}
 		}
@@ -271,22 +276,22 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 				traveler = stoi(pch);
 			}
 			catch (invalid_argument) {
-				dll->log((TCHAR*)TEXT("Valor inválido!"), TYPE::WARNING);
+				taxista->dll->log((TCHAR*)TEXT("Valor inválido!"), TYPE::WARNING);
 				break;
 			}
 			catch (out_of_range) {
-				dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
+				taxista->dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
 				break;
 			}
-			dll->log((TCHAR*)(TEXT("Vou até ao passageiro #%s"), pch), TYPE::NOTIFICATION);
+			taxista->dll->log((TCHAR*)(TEXT("Vou até ao passageiro #%s"), pch), TYPE::NOTIFICATION);
 
 			// IMPLEMENTAR CODIGO DE TRANSPORTE DO PASSAGEIRO
 		}
 		else {
-			dll->log((TCHAR*)TEXT("O comando inserido não existe!"), TYPE::WARNING);
+			taxista->dll->log((TCHAR*)TEXT("O comando inserido não existe!"), TYPE::WARNING);
 		}
 	}
-	delete dll;
+	delete wt;
 	return EXIT_SUCCESS;
 }
 
@@ -299,25 +304,20 @@ DWORD WINAPI CloseThread(LPVOID lpParam) {
 
 	Taxista* taxista = (Taxista*)lpParam;
 	HANDLE hEventClose;
-	DLLProfessores* dll = new DLLProfessores();
-
+	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 5);
 	hEventClose = CreateEvent(NULL, TRUE, FALSE, EVENT_CLOSE_ALL);
 	if (hEventClose == NULL) {
-		dll->log((TCHAR*)TEXT("Não foi possivel criar o evento!"), TYPE::ERRO);
-		delete dll;
+		taxista->dll->log((TCHAR*)TEXT("Não foi possivel criar o evento!"), TYPE::ERRO);
 	}
-	dll->regist((TCHAR*)EVENT_CLOSE_ALL, 4);
+	taxista->dll->regist((TCHAR*)EVENT_CLOSE_ALL, 4);
 
 	WaitForSingleObject(hEventClose, INFINITE);
 	_tprintf(TEXT("\n[WARNING] A Central fechou!\n"));
 	taxista->setExit(true);
 	_tprintf(TEXT("[SHUTDOWN] A Sair...\n"));
-	delete dll;
 	CloseHandle(hEventClose);
-	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 5);
-
-
-
+	wt->wait();
+	delete wt;
+	delete taxista;
 	exit(EXIT_SUCCESS);
-	return EXIT_SUCCESS;
 }

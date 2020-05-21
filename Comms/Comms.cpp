@@ -115,52 +115,74 @@ BOOL validatePlate(TCHAR* plate) {
 
 
 DWORD getMap(Taxista* taxista) {
-	HANDLE hFileMapping, sCanRead, sCanWrite;
-	TAXI* pBuf;
-	DLLProfessores* dll = new DLLProfessores();
+	HANDLE hFileMapping, hFileMappingMap, sCanRead, sCanWrite, sCanSize;
+	MAPINFO* pBuf;
+	LPCTSTR pMap;
 
 	sCanWrite = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_SHAREMAP_WRITE);
 	sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_SHAREMAP_READ);
+	sCanSize = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_SHAREMAP_SIZE);
+
 	if (sCanWrite == NULL || sCanRead == NULL) {
-		dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead!"), TYPE::ERRO);
-		delete dll;
+		taxista->dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead!"), TYPE::ERRO);
 		CloseHandle(sCanWrite);
 		CloseHandle(sCanRead);
 		return EXIT_FAILURE;
 	}
-	dll->regist((TCHAR*)SEMAPHORE_CAN_WRITE_CENCON, 3);
-	dll->regist((TCHAR*)SEMAPHORE_CAN_READ_CENCON, 3);
-	dll->regist((TCHAR*)SEMAPHORE_CAN_CONTAXI_CENCON, 3);
+	taxista->dll->regist((TCHAR*)SEMAPHORE_SHAREMAP_WRITE, 3);
+	taxista->dll->regist((TCHAR*)SEMAPHORE_SHAREMAP_READ, 3);
+	taxista->dll->regist((TCHAR*)SEMAPHORE_SHAREMAP_SIZE, 3);
 
-	hFileMapping = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, SHAREDMEMORY_ZONE_SHAREMAP);
-	if (hFileMapping == NULL) {
-		dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping! SHAREDMEMORY_ZONE_SHAREMAP"), TYPE::ERRO);
-		delete dll;
+	hFileMapping = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, SHAREDMEMORY_CONTAXI_MAP_SIZE);
+	hFileMappingMap = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, SHAREDMEMORY_CONTAXI_MAP);
+
+	if (hFileMapping == NULL || hFileMappingMap == NULL) {
+		taxista->dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping! SHAREDMEMORY_ZONE_SHAREMAP"), TYPE::ERRO);
 		CloseHandle(sCanWrite);
 		CloseHandle(sCanRead);
 		CloseHandle(hFileMapping);
+		CloseHandle(hFileMappingMap);
+		CloseHandle(sCanSize);
 		return EXIT_FAILURE;
 	}
 
-	pBuf = (TAXI*)MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(TAXI));
+	pBuf = (MAPINFO*)MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(MAPINFO));
 	if (pBuf == NULL) {
-		dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
-		delete dll;
+		taxista->dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro! PBUF"), TYPE::ERRO);
 		CloseHandle(sCanWrite);
 		CloseHandle(sCanRead);
+		CloseHandle(sCanSize);
+		CloseHandle(hFileMappingMap);
 		CloseHandle(hFileMapping);
 		return EXIT_FAILURE;
 	}
-	dll->regist((TCHAR*)SHAREDMEMORY_ZONE_SHAREMAP, 7);
+	_tprintf(TEXT("A Espera 2...\n"));
+	WaitForSingleObject(sCanSize, INFINITE);
 
+	pMap = (LPTSTR)MapViewOfFile(hFileMappingMap, FILE_MAP_ALL_ACCESS, 0, 0, pBuf->size);
+	if (pMap == NULL) {
+		taxista->dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro! PMAP"), TYPE::ERRO);
+		CloseHandle(sCanWrite);
+		CloseHandle(sCanRead);
+		CloseHandle(sCanSize);
+		CloseHandle(hFileMappingMap);
+		CloseHandle(hFileMapping);
+		return EXIT_FAILURE;
+	}
 
+	taxista->dll->regist((TCHAR*)SHAREDMEMORY_CONTAXI_MAP_SIZE, 7);
+	taxista->dll->regist((TCHAR*)SHAREDMEMORY_CONTAXI_MAP, 7);
+
+	_tprintf(TEXT("A Espera 3...\n"));
 	ReleaseSemaphore(sCanWrite, 1, NULL);
 	WaitForSingleObject(sCanRead, INFINITE);
-	taxista->setMap(new TownMap(pBuf->map));
-	delete dll;
+	taxista->setMap(new TownMap((TCHAR*)pMap));
 	CloseHandle(sCanWrite);
 	CloseHandle(sCanRead);
+	CloseHandle(sCanSize);
+	CloseHandle(hFileMappingMap);
 	UnmapViewOfFile(pBuf);
+	UnmapViewOfFile(pMap);
 	CloseHandle(hFileMapping);
 	return EXIT_SUCCESS;
 }

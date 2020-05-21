@@ -13,16 +13,19 @@
 
 // memoria partilhada, mapa para o contaxi
 #define SHAREDMEMORY_SHAREMAP TEXT("C:\\tmp\\sharemap.txt")
-#define SHAREDMEMORY_ZONE_SHAREMAP TEXT("SharedMemoryMapZone")
+#define SHAREDMEMORY_CONTAXI_MAP TEXT("ConTaxiMap")
+#define SHAREDMEMORY_CONTAXI_MAP_SIZE TEXT("ConTaxiMapSize")
 #define SEMAPHORE_SHAREMAP_READ TEXT("ShareMapRead")
 #define SEMAPHORE_SHAREMAP_WRITE TEXT("ShareMapWrite")
-
+#define SEMAPHORE_SHAREMAP_SIZE TEXT("ShareMapSize")
 
 // memoria partilhada, mapa para o mapinfo
 #define SHAREDMEMORY_MAPINFO TEXT("C:\\tmp\\mapinfo.txt")
+#define SHAREDMEMORY_ZONE_MAPSIZE TEXT("SharedMemoryMapSize")
 #define SHAREDMEMORY_ZONE_MAPINFO TEXT("SharedMemoryMapInfo")
 #define SEMAPHORE_MAPINFO_READ TEXT("MapInfoRead")
 #define SEMAPHORE_MAPINFO_WRITE TEXT("MapInfoWrite")
+#define SEMAPHORE_MAPINFO_SIZE TEXT("MapInfoSize")
 
 #define SEMAPHORE_CAN_READ_CENCON TEXT("CenConCanRead")
 #define SEMAPHORE_CAN_WRITE_CENCON TEXT("CenConCanWrite")
@@ -31,17 +34,19 @@
 #define SEMAPHORE_PLATE_VALIDATOR_WRITE TEXT("PlateValidatorCanWrite")
 #define SEMAPHORE_PLATE_VALIDATOR_CONTAXI TEXT("PlateValidatorContaxi")
 #define EVENT_CLOSE_ALL TEXT("CloseApps")
+#define EVENT_BOOT_ALL TEXT("CanBoot")
 #define SEMAPHORE_COUNT 10
 #define WAIT_ONE_SECOND -10000000LL
 #define WAIT_TEN_SECONDS -100000000LL
 
 #define TAXI_PLATE_SIZE 100
-#define BUFFER_SIZE 2048
-#define MAP_SHARE_SIZE 1000
-#define SHAREDMEMORY_SIZE 3072
+#define MAP_SHARE_SIZE 10000
+#define SHAREDMEMORY_SIZE 20000
+#define BUFFER_SIZE 1024
+
 #define COMMAND_SIZE 100
 
-#define MAP_NAME "..\\Maps\\map10_10.txt"
+#define MAP_NAME "..\\Maps\\map2.txt"
 #define DLL_PATH_32 TEXT("..\\Dlls\\SO2_TP_DLL_32.dll")
 #define DLL_PATH_64 TEXT("..\\Dlls\\SO2_TP_DLL_64.dll")
 #define CENTAXI_MAIN_MUTEX TEXT("centaxi.main.mutex")
@@ -74,7 +79,6 @@ typedef struct SHAREDMEMORY_TAXI {
 	float speed;
 	BOOL autopicker;
 	TCHAR plate[TAXI_PLATE_SIZE];
-	TCHAR map[MAP_SHARE_SIZE];
 }TAXI;
 
 typedef struct SHAREDMEMORY_PLATE {
@@ -83,5 +87,5 @@ typedef struct SHAREDMEMORY_PLATE {
 }PLATE;
 
 typedef struct SHAREDMEMORY_MAPINFO_STRUCT {
-	TCHAR map[MAP_SHARE_SIZE];
+	int size;
 }MAPINFO;

@@ -11,9 +11,8 @@ class Taxista
 	TownMap* townMap;
 	BOOL exit;
 	TCHAR* textmap;
-	
-
 public:
+	DLLProfessores* dll;
 	Car* car;
 
 	Taxista();

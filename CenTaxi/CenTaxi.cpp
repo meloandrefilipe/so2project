@@ -10,18 +10,17 @@ int _tmain(int argc, TCHAR argv[]){
 
     DWORD idMainMenuThread, idCommunicationThread, idPlateValidatorThread, idSendMapThread, idSendMapInfoThread;
     HANDLE hMutexHandle, communicationThread, mainMenuThread, plateValidatorThread, sendMapThread, sendMapInfoThread;
-
+    HANDLE hEventCanBoot;
     Central* central = new Central();
-    DLLProfessores* dll = new DLLProfessores();
+
 
     // Criar um named mutex para garantir que existe apenas uma CenTaxi a correr no sistema
     hMutexHandle = CreateMutex(NULL, TRUE, CENTAXI_MAIN_MUTEX);
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        dll->log((TCHAR*)TEXT("Aplicação já a correr"), TYPE::ERRO);
-        delete dll;
+        central->dll->log((TCHAR*)TEXT("Aplicação já a correr"), TYPE::ERRO);
         return EXIT_FAILURE;
     }
-    dll->regist((TCHAR*)CENTAXI_MAIN_MUTEX, 1);
+    central->dll->regist((TCHAR*)CENTAXI_MAIN_MUTEX, 1);
 
 
   /*  for (int i = 0; i < nodes.size(); i++)
@@ -57,7 +56,11 @@ int _tmain(int argc, TCHAR argv[]){
     //    }
     //}
 
-
+    hEventCanBoot = CreateEvent(NULL, TRUE, FALSE, EVENT_BOOT_ALL);
+    if (hEventCanBoot == NULL) {
+        central->dll->log((TCHAR*)TEXT("Não foi possivel criar o evento para encerrar!"), TYPE::ERRO);
+        return EXIT_FAILURE;
+    }
 
     _tprintf(TEXT("CenTaxi!\n"));
     sendMapThread = CreateThread(NULL, 0, SendMapThread, central, 0, &idSendMapThread);
@@ -68,11 +71,13 @@ int _tmain(int argc, TCHAR argv[]){
 
 
     if (mainMenuThread == NULL || communicationThread == NULL || sendMapThread == NULL || plateValidatorThread == NULL) {
-        dll->log((TCHAR*)TEXT("Não foi possivel criar a Thread!"), TYPE::ERRO);
-        delete dll;
+        central->dll->log((TCHAR*)TEXT("Não foi possivel criar a Thread!"), TYPE::ERRO);
         return EXIT_FAILURE;
     }
 
+    SetEvent(hEventCanBoot);
+
+    
     WaitForSingleObject(mainMenuThread, INFINITE);
     WaitForSingleObject(communicationThread, INFINITE);
     WaitForSingleObject(plateValidatorThread, INFINITE);
@@ -82,10 +87,11 @@ int _tmain(int argc, TCHAR argv[]){
     CloseHandle(communicationThread);
     CloseHandle(plateValidatorThread);
     CloseHandle(sendMapThread);
+    CloseHandle(hEventCanBoot);
+
 
     ReleaseMutex(hMutexHandle);
     CloseHandle(hMutexHandle);
-    delete dll;
 
     return EXIT_SUCCESS;
 }
@@ -94,12 +100,12 @@ DWORD WINAPI MainMenuThread(LPVOID lpParam) {
     Central* central = (Central*)lpParam;
     TCHAR command[COMMAND_SIZE] = TEXT("");
     HANDLE sCanRead;
-    DLLProfessores* dll = new DLLProfessores();
+    WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 5);
 
     while (!central->isExit()) {
         _tprintf(TEXT("COMMAND: "));
         if (fgetws(command, sizeof(command), stdin) == NULL) {
-            dll->log((TCHAR *)TEXT("Ocorreu um erro a ler o comando inserido!"), TYPE::ERRO);
+            central->dll->log((TCHAR *)TEXT("Ocorreu um erro a ler o comando inserido!"), TYPE::ERRO);
         }
         for (int i = 0; i < sizeof(command) && command[i]; i++){
             if (command[i] == '\n')
@@ -109,7 +115,7 @@ DWORD WINAPI MainMenuThread(LPVOID lpParam) {
 
             HANDLE hEventClose = CreateEvent(NULL, TRUE, FALSE, EVENT_CLOSE_ALL);
             if (hEventClose == NULL) {
-                dll->log((TCHAR*)TEXT("Não foi possivel criar o evento para encerrar!"), TYPE::ERRO);
+                central->dll->log((TCHAR*)TEXT("Não foi possivel criar o evento para encerrar!"), TYPE::ERRO);
                 return EXIT_FAILURE;
             }
             SetEvent(hEventClose);
@@ -117,8 +123,7 @@ DWORD WINAPI MainMenuThread(LPVOID lpParam) {
 
             sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_CAN_READ_CENCON);
             if (sCanRead == NULL) {
-                dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanRead Menu!"), TYPE::ERRO);
-                delete dll;
+                central->dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanRead Menu!"), TYPE::ERRO);
                 CloseHandle(sCanRead);
                 CloseHandle(hEventClose);
                 return EXIT_FAILURE;
@@ -126,12 +131,14 @@ DWORD WINAPI MainMenuThread(LPVOID lpParam) {
             ReleaseSemaphore(sCanRead, 1, NULL);
             CloseHandle(sCanRead);
             CloseHandle(hEventClose);
-            delete dll;
             _tprintf(TEXT("[SHUTDOWN] A Sair...\n"));
-            WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 5);
+            wt->wait();
+            delete wt;
+            delete central;
             exit(EXIT_SUCCESS);
         }
     }
+    delete wt;
     return EXIT_SUCCESS;
 }
 
@@ -139,37 +146,34 @@ DWORD WINAPI CommunicationThread(LPVOID lpParam) {
     TAXI * pBuf;
     HANDLE hFileMapping, hFile, sCanRead, sCanWrite;
     Central* central = (Central*)lpParam;
-    DLLProfessores* dll = new DLLProfessores();
 
 
     hFile = CreateFile(SHAREDMEMORY_CEN_CON, GENERIC_ALL, FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == NULL) {
-        dll->log((TCHAR*)TEXT("Não foi possível criar o ficheiro de memoria Centaxi-Contaxi!"), TYPE::ERRO);
-        delete dll;
+        central->dll->log((TCHAR*)TEXT("Não foi possível criar o ficheiro de memoria Centaxi-Contaxi!"), TYPE::ERRO);
         CloseHandle(hFile);
         return EXIT_FAILURE;
     }
+    central->dll->regist((TCHAR*)SHAREDMEMORY_CEN_CON, 6);
 
     sCanWrite = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, SEMAPHORE_CAN_WRITE_CENCON);
     sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_CAN_READ_CENCON);
 
     if (sCanWrite == NULL || sCanRead == NULL) {
-        dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead Comunicação!"), TYPE::ERRO);
-        delete dll;
+        central->dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead Comunicação!"), TYPE::ERRO);
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(hFile);
         return EXIT_FAILURE;
     }
-    dll->regist((TCHAR*)SEMAPHORE_CAN_WRITE_CENCON, 3);
-    dll->regist((TCHAR*)SEMAPHORE_CAN_READ_CENCON, 3);
+    central->dll->regist((TCHAR*)SEMAPHORE_CAN_WRITE_CENCON, 3);
+    central->dll->regist((TCHAR*)SEMAPHORE_CAN_READ_CENCON, 3);
 
-    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, BUFFER_SIZE, SHAREDMEMORY_CEN_CON_ZONE);
+    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, SHAREDMEMORY_SIZE, SHAREDMEMORY_CEN_CON_ZONE);
     
 
     if (hFileMapping == NULL) {
-        dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping!"), TYPE::ERRO);
-        delete dll;
+        central->dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping!"), TYPE::ERRO);
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(hFile);
@@ -178,15 +182,14 @@ DWORD WINAPI CommunicationThread(LPVOID lpParam) {
     }
     pBuf = (TAXI*) MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(TAXI));
     if (pBuf == NULL) {
-        dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
-        delete dll;
+        central->dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(hFile);
         CloseHandle(hFileMapping);
         return EXIT_FAILURE;
     } 
-    dll->regist((TCHAR*)SHAREDMEMORY_CEN_CON_ZONE, 7);
+    central->dll->regist((TCHAR*)SHAREDMEMORY_CEN_CON_ZONE, 7);
 
     while(!central->isExit()){
         WaitForSingleObject(sCanRead, INFINITE);
@@ -205,7 +208,6 @@ DWORD WINAPI CommunicationThread(LPVOID lpParam) {
             ReleaseSemaphore(sCanWrite, 1, NULL);
         }
     }
-    delete dll;
     UnmapViewOfFile(pBuf);
     CloseHandle(sCanWrite);
     CloseHandle(sCanRead);
@@ -219,22 +221,19 @@ DWORD WINAPI PlateValidatorThread(LPVOID lpParam) {
     PLATE p;
     HANDLE hFileMapping, hFile, sCanRead, sCanWrite, sConTaxi;
     Central* central = (Central*)lpParam;
-    DLLProfessores* dll = new DLLProfessores();
 
     hFile = CreateFile(SHAREDMEMORY_CEN_CON, GENERIC_ALL, FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == NULL) {
-        dll->log((TCHAR*)TEXT(" Não foi possível criar o ficheiro de memoria!"), TYPE::ERRO);
-        delete dll;
+        central->dll->log((TCHAR*)TEXT(" Não foi possível criar o ficheiro de memoria!"), TYPE::ERRO);
         CloseHandle(hFile);
         return EXIT_FAILURE;
     }
-
+    central->dll->regist((TCHAR*)SHAREDMEMORY_CEN_CON, 6);
     sCanWrite = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, SEMAPHORE_PLATE_VALIDATOR_WRITE);
     sConTaxi = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_PLATE_VALIDATOR_CONTAXI);
     sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_PLATE_VALIDATOR_READ);
     if (sCanWrite == NULL || sCanRead == NULL || sConTaxi == NULL) {
-        dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead ou sConTaxi Plate!"), TYPE::ERRO);
-        delete dll;
+        central->dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead ou sConTaxi Plate!"), TYPE::ERRO);
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(sConTaxi);
@@ -242,14 +241,13 @@ DWORD WINAPI PlateValidatorThread(LPVOID lpParam) {
         return EXIT_FAILURE;
     }
 
-    dll->regist((TCHAR*)SEMAPHORE_PLATE_VALIDATOR_READ, 3);
-    dll->regist((TCHAR*)SEMAPHORE_PLATE_VALIDATOR_WRITE, 3);
-    dll->regist((TCHAR*)SEMAPHORE_PLATE_VALIDATOR_CONTAXI, 3);
+    central->dll->regist((TCHAR*)SEMAPHORE_PLATE_VALIDATOR_READ, 3);
+    central->dll->regist((TCHAR*)SEMAPHORE_PLATE_VALIDATOR_WRITE, 3);
+    central->dll->regist((TCHAR*)SEMAPHORE_PLATE_VALIDATOR_CONTAXI, 3);
 
-    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, BUFFER_SIZE, SHAREDMEMORY_PLATE_VALIDATION);
+    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, SHAREDMEMORY_SIZE, SHAREDMEMORY_PLATE_VALIDATION);
     if (hFileMapping == NULL) {
-        dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping!"), TYPE::ERRO);
-        delete dll;
+        central->dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping!"), TYPE::ERRO);
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(sConTaxi);
@@ -260,8 +258,7 @@ DWORD WINAPI PlateValidatorThread(LPVOID lpParam) {
 
     pBuf = (PLATE *)MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(PLATE));
     if (pBuf == NULL) {
-        dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
-        delete dll;
+        central->dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(sConTaxi);
@@ -270,7 +267,7 @@ DWORD WINAPI PlateValidatorThread(LPVOID lpParam) {
         return EXIT_FAILURE;
     }
 
-    dll->regist((TCHAR*)SHAREDMEMORY_PLATE_VALIDATION, 7);
+    central->dll->regist((TCHAR*)SHAREDMEMORY_PLATE_VALIDATION, 7);
 
     while (!central->isExit()) {
         WaitForSingleObject(sCanRead, INFINITE);
@@ -289,7 +286,6 @@ DWORD WINAPI PlateValidatorThread(LPVOID lpParam) {
             ReleaseSemaphore(sCanWrite, 1, NULL);
         }
     }
-    delete dll;
     UnmapViewOfFile(pBuf);
     CloseHandle(sCanWrite);
     CloseHandle(sCanRead);
@@ -300,131 +296,159 @@ DWORD WINAPI PlateValidatorThread(LPVOID lpParam) {
 }
 
 DWORD WINAPI SendMapThread(LPVOID lpParam) {
-    HANDLE hFile, hFileMapping, sCanRead, sCanWrite;
-    TAXI* pBuf;
-    TAXI taxi;
-    DLLProfessores* dll = new DLLProfessores();
+    HANDLE hFile, hFileMapping, hFileMappingMap, sCanRead, sCanWrite, sCanSize;
+    MAPINFO* pBuf;
+    MAPINFO mapInfo;
+    LPCTSTR pMap;
     Central* central = (Central*)lpParam;
-    _tcscpy_s(taxi.map, MAP_SHARE_SIZE, central->getCleanMap());
 
     hFile = CreateFile(SHAREDMEMORY_SHAREMAP, GENERIC_ALL, FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == NULL) {
-        dll->log((TCHAR*)TEXT("Não foi possível criar o ficheiro de memoria SHAREDMEMORY_SHAREMAP!"), TYPE::ERRO);
-        delete dll;
+        central->dll->log((TCHAR*)TEXT("Não foi possível criar o ficheiro de memoria SHAREDMEMORY_SHAREMAP!"), TYPE::ERRO);
         CloseHandle(hFile);
         return EXIT_FAILURE;
     }
-
+    central->dll->regist((TCHAR*)SHAREDMEMORY_SHAREMAP, 6);
     sCanWrite = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_SHAREMAP_WRITE);
     sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_SHAREMAP_READ);
+    sCanSize = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_SHAREMAP_SIZE);
 
-    if (sCanWrite == NULL || sCanRead == NULL) {
-        dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead!"), TYPE::ERRO);
-        delete dll;
+    if (sCanWrite == NULL || sCanRead == NULL || sCanSize == NULL) {
+        central->dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead!"), TYPE::ERRO);
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
+        CloseHandle(sCanSize);
         return EXIT_FAILURE;
     }
-    dll->regist((TCHAR*)SEMAPHORE_SHAREMAP_WRITE, 3);
-    dll->regist((TCHAR*)SEMAPHORE_SHAREMAP_READ, 3);
+    central->dll->regist((TCHAR*)SEMAPHORE_SHAREMAP_WRITE, 3);
+    central->dll->regist((TCHAR*)SEMAPHORE_SHAREMAP_READ, 3);
+    central->dll->regist((TCHAR*)SEMAPHORE_SHAREMAP_SIZE, 3);
 
-    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, BUFFER_SIZE, SHAREDMEMORY_ZONE_SHAREMAP);
+    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, sizeof(MAPINFO), SHAREDMEMORY_CONTAXI_MAP_SIZE);
+    hFileMappingMap = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, central->getSizeMap(), SHAREDMEMORY_CONTAXI_MAP);
 
-    if (hFileMapping == NULL) {
-        dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping SHAREDMEMORY_ZONE_SHAREMAP!"), TYPE::ERRO);
-        delete dll;
+    if (hFileMapping == NULL || hFileMappingMap == NULL) {
+        central->dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping SHAREDMEMORY_ZONE_SHAREMAP!"), TYPE::ERRO);
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
-        CloseHandle(hFileMapping);
-        return EXIT_FAILURE;
-    }
-
-    pBuf = (TAXI*)MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(TAXI));
-    if (pBuf == NULL) {
-        dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
-        delete dll;
-        CloseHandle(sCanWrite);
-        CloseHandle(sCanRead);
-        CloseHandle(hFileMapping);
-        return EXIT_FAILURE;
-    }
-
-    dll->regist((TCHAR*)SHAREDMEMORY_ZONE_SHAREMAP, 7);
-    while (!central->isExit()) {
-        WaitForSingleObject(sCanWrite, INFINITE);
-        CopyMemory(pBuf, &taxi, sizeof(TAXI));
-        ReleaseSemaphore(sCanRead, 1, NULL);
-    }
-    delete dll;
-    CloseHandle(sCanWrite);
-    CloseHandle(sCanRead);
-    UnmapViewOfFile(pBuf);
-    CloseHandle(hFileMapping);
-    return EXIT_SUCCESS;
-}
-
-DWORD WINAPI SendMapInfoThread(LPVOID lpParam) {
-    HANDLE hFile, hFileMapping, sCanRead, sCanWrite;
-    MAPINFO* pBuf;
-    MAPINFO mapinfo;
-    DLLProfessores* dll = new DLLProfessores();
-    Central* central = (Central*)lpParam;
- 
-
-    hFile = CreateFile(SHAREDMEMORY_MAPINFO, GENERIC_ALL, FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (hFile == NULL) {
-        dll->log((TCHAR*)TEXT("Não foi possível criar o ficheiro de memoria SHAREDMEMORY_SHAREMAP!"), TYPE::ERRO);
-        delete dll;
-        CloseHandle(hFile);
-        return EXIT_FAILURE;
-    }
-
-    sCanWrite = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, SEMAPHORE_MAPINFO_WRITE);
-    sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_MAPINFO_READ);
-
-    if (sCanWrite == NULL || sCanRead == NULL) {
-        dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead!"), TYPE::ERRO);
-        delete dll;
-        CloseHandle(sCanWrite);
-        CloseHandle(sCanRead);
-        return EXIT_FAILURE;
-    }
-    dll->regist((TCHAR*)SEMAPHORE_MAPINFO_WRITE, 3);
-    dll->regist((TCHAR*)SEMAPHORE_MAPINFO_READ, 3);
-
-    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, BUFFER_SIZE, SHAREDMEMORY_ZONE_MAPINFO);
-
-    if (hFileMapping == NULL) {
-        dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping SHAREDMEMORY_ZONE_SHAREMAP!"), TYPE::ERRO);
-        delete dll;
-        CloseHandle(sCanWrite);
-        CloseHandle(sCanRead);
+        CloseHandle(sCanSize);
+        CloseHandle(hFileMappingMap);
         CloseHandle(hFileMapping);
         return EXIT_FAILURE;
     }
 
     pBuf = (MAPINFO*)MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(MAPINFO));
-    if (pBuf == NULL) {
-        dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
-        delete dll;
+    pMap = (LPTSTR)MapViewOfFile(hFileMappingMap, FILE_MAP_ALL_ACCESS, 0, 0, central->getSizeMap());
+    if (pBuf == NULL || pMap == NULL) {
+        central->dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
+        CloseHandle(sCanSize);
+        CloseHandle(hFileMappingMap);
         CloseHandle(hFileMapping);
         return EXIT_FAILURE;
     }
+    central->dll->regist((TCHAR*)SHAREDMEMORY_CONTAXI_MAP_SIZE, 7);
+    central->dll->regist((TCHAR*)SHAREDMEMORY_CONTAXI_MAP, 7);
 
-    dll->regist((TCHAR*)SHAREDMEMORY_ZONE_MAPINFO, 7);
+    mapInfo.size = central->getSizeMap();
+    CopyMemory(pBuf, &mapInfo, sizeof(MAPINFO));
+    
+    
     while (!central->isExit()) {
-        _tcscpy_s(mapinfo.map, MAP_SHARE_SIZE, central->getMapToShare());
-        WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND);
-        CopyMemory(pBuf, &mapinfo, sizeof(MAPINFO));
+        ReleaseSemaphore(sCanSize, 1, NULL);
+        WaitForSingleObject(sCanWrite, INFINITE);
+        CopyMemory((PVOID)pMap, central->getCleanMap(), central->getSizeMap());
         ReleaseSemaphore(sCanRead, 1, NULL);
-        delete wt;
     }
-    delete dll;
     CloseHandle(sCanWrite);
     CloseHandle(sCanRead);
+    CloseHandle(sCanSize);
     UnmapViewOfFile(pBuf);
+    UnmapViewOfFile(pMap);
     CloseHandle(hFileMapping);
+    CloseHandle(hFileMappingMap);
+    return EXIT_SUCCESS;
+}
+
+DWORD WINAPI SendMapInfoThread(LPVOID lpParam) {
+    HANDLE hFile, hFileMapping, sCanRead, sCanWrite, sCanSize, hFileMappingMap;
+    MAPINFO* pBuf;
+    MAPINFO mapInfo;
+    LPCTSTR pMap;
+    TCHAR* map;
+    Central* central = (Central*)lpParam;
+    WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND);
+
+    hFile = CreateFile(SHAREDMEMORY_MAPINFO, GENERIC_ALL, FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == NULL) {
+        central->dll->log((TCHAR*)TEXT("Não foi possível criar o ficheiro de memoria SHAREDMEMORY_SHAREMAP!"), TYPE::ERRO);
+        CloseHandle(hFile);
+        return EXIT_FAILURE;
+    }
+    central->dll->regist((TCHAR*)SHAREDMEMORY_MAPINFO, 6);
+
+    sCanWrite = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, SEMAPHORE_MAPINFO_WRITE);
+    sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_MAPINFO_READ);
+    sCanSize = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_MAPINFO_SIZE);
+
+    if (sCanWrite == NULL || sCanRead == NULL || sCanSize == NULL) {
+        central->dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead!"), TYPE::ERRO);
+        CloseHandle(sCanWrite);
+        CloseHandle(sCanRead);
+        CloseHandle(sCanSize);
+        return EXIT_FAILURE;
+    }
+    central->dll->regist((TCHAR*)SEMAPHORE_MAPINFO_WRITE, 3);
+    central->dll->regist((TCHAR*)SEMAPHORE_MAPINFO_READ, 3);
+    central->dll->regist((TCHAR*)SEMAPHORE_MAPINFO_SIZE, 3);
+
+    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, sizeof(MAPINFO), SHAREDMEMORY_ZONE_MAPSIZE);
+    hFileMappingMap = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, central->getSizeMap(), SHAREDMEMORY_ZONE_MAPINFO);
+
+    if (hFileMapping == NULL || hFileMappingMap == NULL) {
+        central->dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping SHAREDMEMORY_ZONE_SHAREMAP!"), TYPE::ERRO);
+        CloseHandle(sCanWrite);
+        CloseHandle(sCanRead);
+        CloseHandle(sCanSize);
+        CloseHandle(hFileMapping);
+        CloseHandle(hFileMappingMap);
+        return EXIT_FAILURE;
+    }
+    pBuf = (MAPINFO*)MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(MAPINFO));
+    pMap = (LPTSTR)MapViewOfFile(hFileMappingMap, FILE_MAP_ALL_ACCESS, 0, 0, central->getSizeMap());
+
+    if (pBuf == NULL || pMap == NULL) {
+        central->dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
+        CloseHandle(sCanWrite);
+        CloseHandle(sCanRead);
+        CloseHandle(hFileMapping);
+        CloseHandle(hFileMappingMap);
+        return EXIT_FAILURE;
+    }
+    central->dll->regist((TCHAR*)SHAREDMEMORY_ZONE_MAPSIZE, 7);
+    central->dll->regist((TCHAR*)SHAREDMEMORY_ZONE_MAPINFO, 7);
+
+    mapInfo.size = central->getSizeMap();
+    map = new TCHAR[central->getSizeMap()];
+    CopyMemory(pBuf, &mapInfo, sizeof(MAPINFO));
+
+
+
+    while (!central->isExit()) {
+        ReleaseSemaphore(sCanSize, 1, NULL);
+        _tcscpy_s(map,  central->getSizeMap(), central->getFilledMap());
+        wt->wait();
+        CopyMemory((PVOID)pMap, map, central->getSizeMap());
+        ReleaseSemaphore(sCanRead, 1, NULL);
+    }
+    delete wt;
+    CloseHandle(sCanWrite);
+    CloseHandle(sCanRead);
+    CloseHandle(sCanSize);
+    UnmapViewOfFile(pBuf);
+    UnmapViewOfFile(pMap);
+    CloseHandle(hFileMapping);
+    CloseHandle(hFileMappingMap);
     return EXIT_SUCCESS;
 }

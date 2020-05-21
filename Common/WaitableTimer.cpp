@@ -3,55 +3,43 @@
 
 WaitableTimer::WaitableTimer(LONGLONG time)
 {
-    this->hDLL = NULL;
     this->hTimer = NULL;
     this->liDueTime = { 0 };
     this->liDueTime.QuadPart = time;
-
-
-    this->hDLL = LoadLibrary(DLL_PATH_64);
-    if (this->hDLL == NULL) {
-        _tprintf(TEXT("[ERRO] Não foi possivel carregar a DLL 'dos professores'!\n[CODE] %d\n"), GetLastError());
-        return;
-    }
-    FuncRegister fRegister = (FuncRegister)GetProcAddress(this->hDLL, "dll_register");
-    FuncLog fLog = (FuncLog)GetProcAddress(this->hDLL, "dll_log");
+    this->name = new TCHAR[20];
+    swprintf_s(this->name, 20, TEXT("WT_%d"), WT++);
+    this->dll = new DLLProfessores();
 
     this->hTimer = CreateWaitableTimer(NULL, TRUE, NULL);
     if (this->hTimer == NULL) {
-        tstringstream msg;
-        msg << "[ERRO] Não foi possivel criar o WaitableTimer!" << endl;
-        msg << "[CODE] " << GetLastError() << endl;
-        _tprintf(msg.str().c_str());
-        fLog((TCHAR*)msg.str().c_str());
-        FreeLibrary(this->hDLL);
+        this->dll->log((TCHAR*)TEXT("Não foi possivel criar o WaitableTimer!"), TYPE::ERRO);
+        delete this->dll;
         CloseHandle(this->hTimer);
         return;
     }
-    if (!SetWaitableTimer(this->hTimer, &this->liDueTime, 0, NULL, NULL, 0)) {
-        tstringstream msg;
-        msg << "[ERRO] Não foi possivel iniciar o WaitableTimer!" << endl;
-        msg << "[CODE] " << GetLastError() << endl;
-        _tprintf(msg.str().c_str());
-        fLog((TCHAR*)msg.str().c_str());
-        FreeLibrary(this->hDLL);
-        CloseHandle(this->hTimer);
-        return;
-    }
-    if (WaitForSingleObject(this->hTimer, INFINITE) != WAIT_OBJECT_0) {
-        tstringstream msg;
-        msg << "[ERRO] Não foi possível iniciar o WaitForSingleObject!" << endl;
-        msg << "[CODE] " << GetLastError() << endl;
-        _tprintf(msg.str().c_str());
-        fLog((TCHAR*)msg.str().c_str());
-        FreeLibrary(this->hDLL);
-        CloseHandle(this->hTimer);
-        return;
-    }
+    
+    this->dll->regist(this->name, 6);
 }
 
 WaitableTimer::~WaitableTimer()
 {
     CloseHandle(this->hTimer);
-    FreeLibrary(this->hDLL);
+    delete this->dll;
+}
+
+DWORD WaitableTimer::wait()
+{
+    if (!SetWaitableTimer(this->hTimer, &this->liDueTime, 0, NULL, NULL, 0)) {
+        this->dll->log((TCHAR*)TEXT("Não foi possivel iniciar o WaitableTimer!"), TYPE::ERRO);
+        delete this->dll;
+        CloseHandle(this->hTimer);
+        return EXIT_FAILURE;
+    }
+    if (WaitForSingleObject(this->hTimer, INFINITE) != WAIT_OBJECT_0) {
+        this->dll->log((TCHAR*)TEXT("Não foi possível iniciar o WaitForSingleObject!"), TYPE::ERRO);
+        delete this->dll;
+        CloseHandle(this->hTimer);
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
 }

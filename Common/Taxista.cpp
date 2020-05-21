@@ -6,10 +6,12 @@ Taxista::Taxista()
 	this->car = nullptr;
 	this->exit = false;
 	this->textmap = new TCHAR[MAP_SHARE_SIZE];
+	this->dll = new DLLProfessores();
 }
 
 Taxista::~Taxista()
 {
+	delete this->dll;
 	delete this->townMap;
 	delete this->car;
 }

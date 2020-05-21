@@ -35,7 +35,7 @@ DWORD DLLProfessores::regist(TCHAR* message, int code)
 
 DWORD DLLProfessores::log(TCHAR* message, TYPE type)
 {
-    TCHAR str[MAP_SHARE_SIZE] = TEXT("");
+    TCHAR str[BUFFER_SIZE] = TEXT("");
     tstringstream msg;
     switch (type)
     {
@@ -55,7 +55,7 @@ DWORD DLLProfessores::log(TCHAR* message, TYPE type)
     
     msg << "[CODE] " << GetLastError() << endl;
     _tprintf(msg.str().c_str());
-    _tcscpy_s(str, MAP_SHARE_SIZE, msg.str().c_str());
+    _tcscpy_s(str, BUFFER_SIZE, msg.str().c_str());
     this->funcLog(str);
     return EXIT_SUCCESS;
 }
