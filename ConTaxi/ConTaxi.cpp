@@ -27,6 +27,18 @@ int _tmain(int argc ,TCHAR* argv[]) {
 	closeThread = CreateThread(NULL, 0, CloseThread, taxista, 0, &idCloseThread);
 	getMapThread = CreateThread(NULL, 0, GetMapThread, taxista, 0, &idGetMapThread);
 	WaitForSingleObject(getMapThread, INFINITE);
+
+	if (!taxista->getCanRegist()) {
+		WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 5);
+		_tprintf(TEXT("A central está fechada, volte mais tarde!\n"));
+		_tprintf(TEXT("A fechar...!\n"));
+		wt->wait();
+		delete wt;
+		CloseHandle(closeThread);
+		CloseHandle(getMapThread);
+		delete taxista;
+		return EXIT_SUCCESS;
+	}
 	getCarDataThread = CreateThread(NULL, 0, GetCarDataThread, taxista, 0, &idGetCarDataThread);
 
 	WaitForSingleObject(getCarDataThread, INFINITE);
@@ -51,7 +63,7 @@ int _tmain(int argc ,TCHAR* argv[]) {
 	CloseHandle(commandsThread);
 	CloseHandle(closeThread);
 	CloseHandle(communicationThread);
-
+	delete taxista;
 	return EXIT_SUCCESS;
 }
 

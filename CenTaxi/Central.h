@@ -4,6 +4,8 @@
 #include "Car.h"
 #include "WaitableTimer.h"
 
+#define DEFAULT_WAIT_TIME 10
+
 class Central
 {
 	TownMap* townMap;
@@ -12,6 +14,8 @@ class Central
 	TCHAR* textFilledMap;
 	HANDLE hMutex;
 	int sizeMap;
+	int waitTime;
+	BOOL takingIn;
 public:
 	DLLProfessores* dll;
 	vector<Car*> cars;
@@ -19,9 +23,13 @@ public:
 	~Central();
 	int getSizeCars() const;
 	int getSizeMap() const;
+	int getWaitTime() const;
+	void setWaitTime(int time);
 	void addCar(Car* car);
 	void setExit(BOOL exit);
+	void setTakingIn(BOOL val);
 	BOOL isExit();
+	BOOL isTakingIn();
 	BOOL carExists(TAXI* taxi);
 	vector<Car*> getCars();
 	TownMap* getTownMap();

@@ -26,6 +26,7 @@
 #define SEMAPHORE_SHAREMAP_READ TEXT("ShareMapRead")
 #define SEMAPHORE_SHAREMAP_WRITE TEXT("ShareMapWrite")
 #define SEMAPHORE_SHAREMAP_SIZE TEXT("ShareMapSize")
+#define SEMAPHORE_SHAREMAP_WANT TEXT("ShareMapWant")
 
 // memoria partilhada, mapa para o mapinfo
 #define SHAREDMEMORY_MAPINFO TEXT("C:\\tmp\\mapinfo.txt")
@@ -42,6 +43,7 @@
 //Mutexes
 #define CENTAXI_MAIN_MUTEX TEXT("centaxi.main.mutex")
 #define MUTEX_CENTAXI_MAPINFO TEXT("centaxi.mapinfo.mutex")
+#define MUTEX_CENTAXI_TAKINGIN TEXT("centaxi.stop.mutex")
 
 // Timmers
 #define WAIT_ONE_SECOND -10000000LL
@@ -93,4 +95,5 @@ typedef struct SHAREDMEMORY_PLATE {
 
 typedef struct SHAREDMEMORY_MAPINFO_STRUCT {
 	int size;
+	BOOL canRegist;
 }MAPINFO;

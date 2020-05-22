@@ -22,40 +22,6 @@ int _tmain(int argc, TCHAR argv[]){
     }
     central->dll->regist((TCHAR*)CENTAXI_MAIN_MUTEX, 1);
 
-
-  /*  for (int i = 0; i < nodes.size(); i++)
-    {
-        if (nodes[i]->getRow() == 1 && nodes[i]->getCol() == 1) {
-            src = nodes[i];
-            if (!nodes[i]->isRoad()) {
-                tstringstream msg;
-                msg << "[ERRO] O ponto (" << nodes[i]->getRow() << ", " << nodes[i]->getCol() << ") nao é um pedaço de estrada!" << endl;
-                _tprintf(msg.str().c_str());
-                fLog((TCHAR*)msg.str().c_str());
-            }
-        }
-        if (nodes[i]->getRow() == 6 && nodes[i]->getCol() == 5) {
-            if (!nodes[i]->isRoad()) {
-                tstringstream msg;
-                msg << "[ERRO] O ponto (" << nodes[i]->getRow() << ", " << nodes[i]->getCol() << ") nao é um pedaço de estrada!" << endl;
-                _tprintf(msg.str().c_str());
-                fLog((TCHAR*)msg.str().c_str());
-            }
-            dest = nodes[i];
-        }
-    }*/
-    //if (src != NULL && dest != NULL) {
-    //    _tprintf(TEXT("[SRC] ID: %s \n"), src->getID());
-    //    _tprintf(TEXT("[DEST] ID: %s \n"), dest->getID());
-    //    BreadthFirstSearch bfs = BreadthFirstSearch(townMap);
-    //    BESTPATH bp = bfs.getBestPath(src, dest);
-    //    _tprintf(TEXT("[MAP] cost: %d\n"), bp.cost);
-    //    for (int i = 0; i < bp.path.size(); i++)
-    //    {
-    //        _tprintf(TEXT("[PATH] %s\n"), bp.path[i]->getID());
-    //    }
-    //}
-
     hEventCanBoot = CreateEvent(NULL, TRUE, FALSE, EVENT_BOOT_ALL);
     if (hEventCanBoot == NULL) {
         central->dll->log((TCHAR*)TEXT("Não foi possivel criar o evento para encerrar!"), TYPE::ERRO);
@@ -99,6 +65,8 @@ int _tmain(int argc, TCHAR argv[]){
 DWORD WINAPI MainMenuThread(LPVOID lpParam) {
     Central* central = (Central*)lpParam;
     TCHAR command[COMMAND_SIZE] = TEXT("");
+    TCHAR* pch = new TCHAR[COMMAND_SIZE];
+    TCHAR* something  = new TCHAR[COMMAND_SIZE];
     HANDLE sCanRead;
     WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 5);
 
@@ -109,11 +77,22 @@ DWORD WINAPI MainMenuThread(LPVOID lpParam) {
                 central->dll->log((TCHAR*)TEXT("Ocorreu um erro a ler o comando inserido!"), TYPE::ERRO);
             }
         } while (sizeof(command) < 1);
-        for (int i = 0; i < sizeof(command) && command[i]; i++){
+        int spaces = 0;
+        for (int i = 0; i < sizeof(command) && command[i]; i++)
+        {
             if (command[i] == '\n')
                 command[i] = '\0';
+            if (command[i] == ' ')
+                spaces++;
         }
-        if (_tcscmp(command, TEXT("exit")) == 0) {
+        if (spaces > 0) {
+            pch = _tcstok_s(command, TEXT(" "), &something);
+        }
+        else {
+            pch = command;
+        }
+
+        if (_tcscmp(pch, TEXT("exit")) == 0) {
 
             HANDLE hEventClose = CreateEvent(NULL, TRUE, FALSE, EVENT_CLOSE_ALL);
             if (hEventClose == NULL) {
@@ -140,6 +119,50 @@ DWORD WINAPI MainMenuThread(LPVOID lpParam) {
             delete wt;
             delete central;
             exit(EXIT_SUCCESS);
+        }
+        else if (_tcscmp(pch, TEXT("listarcarros")) == 0) {
+            if (central->cars.size() > 0) {
+                for (int i = 0; i < central->cars.size(); i++)
+                {
+                    _tprintf(TEXT("Carro #%d está na posição <%d, %d> com a matricula %s.\n"), central->cars[i]->getId(), central->cars[i]->getRow(), central->cars[i]->getCol(), central->cars[i]->getPlate());
+                }
+            }else{
+                _tprintf(TEXT("Não existem taxis associados a nossa central neste momento!\n"));
+            }
+        }
+        else if (_tcscmp(pch, TEXT("listarpassageiros")) == 0) {
+            // Colocar codigo na segunda meta;
+            _tprintf(TEXT("Esta funcionalidade ainda não está implementada!\n"));
+        }
+        else if (_tcscmp(pch, TEXT("tempo")) == 0) {
+            pch = _tcstok_s(something, TEXT(" "), &something);
+
+            int val = DEFAULT_WAIT_TIME;
+            if (pch != NULL) {
+                try {
+                    val = stoi(pch);
+                }
+                catch (invalid_argument) {
+                    central->dll->log((TCHAR*)TEXT("Valor inválido!"), TYPE::WARNING);
+                    continue;
+                }
+                catch (out_of_range) {
+                    central->dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
+                    continue;
+                }
+                central->setWaitTime(val);
+            }
+        }
+        else if (_tcscmp(pch, TEXT("pausar")) == 0) {
+            central->setTakingIn(false);
+            _tprintf(TEXT("A central não aceita novos taxis!\n"));
+        }
+        else if (_tcscmp(pch, TEXT("recomeçar")) == 0) {
+            central->setTakingIn(true);
+            _tprintf(TEXT("A central voltou a aceitar novos taxis!\n"));
+        }
+        else {
+            central->dll->log((TCHAR*)TEXT("O comando inserido não existe!"), TYPE::WARNING);
         }
     }
     delete wt;
@@ -196,20 +219,22 @@ DWORD WINAPI CommunicationThread(LPVOID lpParam) {
     central->dll->regist((TCHAR*)SHAREDMEMORY_CEN_CON_ZONE, 7);
 
     while(!central->isExit()){
-        WaitForSingleObject(sCanRead, INFINITE);
-        if (!central->isExit()) {
-            if (!central->carExists(pBuf)) {
-                Car* c = new Car(pBuf);
-                central->addCar(c);
-                tstringstream msg;
-                msg << "\n[NEW CAR] Entrou um novo taxi! Matricula: " << c->getPlate() << endl;
-                _tprintf(msg.str().c_str());
-                _tprintf(TEXT("\nCOMMAND: "));
+        if (central->isTakingIn()) {
+            WaitForSingleObject(sCanRead, INFINITE);
+            if (!central->isExit()) {
+                if (!central->carExists(pBuf)) {
+                    Car* c = new Car(pBuf);
+                    central->addCar(c);
+                    tstringstream msg;
+                    msg << "\n[NEW CAR] Entrou um novo taxi! Matricula: " << c->getPlate() << endl;
+                    _tprintf(msg.str().c_str());
+                    _tprintf(TEXT("COMMAND: "));
+                }
+                else {
+                    central->updateCar(pBuf);
+                }
+                ReleaseSemaphore(sCanWrite, 1, NULL);
             }
-            else {
-                central->updateCar(pBuf);
-            }
-            ReleaseSemaphore(sCanWrite, 1, NULL);
         }
     }
     UnmapViewOfFile(pBuf);
@@ -300,7 +325,7 @@ DWORD WINAPI PlateValidatorThread(LPVOID lpParam) {
 }
 
 DWORD WINAPI SendMapThread(LPVOID lpParam) {
-    HANDLE hFile, hFileMapping, hFileMappingMap, sCanRead, sCanWrite, sCanSize;
+    HANDLE hFile, hFileMapping, hFileMappingMap, sCanRead, sCanWrite, sCanSize, sCanMap;
     MAPINFO* pBuf;
     MAPINFO mapInfo;
     LPCTSTR pMap;
@@ -316,11 +341,13 @@ DWORD WINAPI SendMapThread(LPVOID lpParam) {
     sCanWrite = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_SHAREMAP_WRITE);
     sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_SHAREMAP_READ);
     sCanSize = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_SHAREMAP_SIZE);
+    sCanMap = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_SHAREMAP_WANT);
 
     if (sCanWrite == NULL || sCanRead == NULL || sCanSize == NULL) {
         central->dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead!"), TYPE::ERRO);
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
+        CloseHandle(sCanMap);
         CloseHandle(sCanSize);
         return EXIT_FAILURE;
     }
@@ -336,6 +363,7 @@ DWORD WINAPI SendMapThread(LPVOID lpParam) {
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(sCanSize);
+        CloseHandle(sCanMap);
         CloseHandle(hFileMappingMap);
         CloseHandle(hFileMapping);
         return EXIT_FAILURE;
@@ -347,6 +375,7 @@ DWORD WINAPI SendMapThread(LPVOID lpParam) {
         central->dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
         CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
+        CloseHandle(sCanMap);
         CloseHandle(sCanSize);
         CloseHandle(hFileMappingMap);
         CloseHandle(hFileMapping);
@@ -355,16 +384,17 @@ DWORD WINAPI SendMapThread(LPVOID lpParam) {
     central->dll->regist((TCHAR*)SHAREDMEMORY_CONTAXI_MAP_SIZE, 7);
     central->dll->regist((TCHAR*)SHAREDMEMORY_CONTAXI_MAP, 7);
 
-    mapInfo.size = central->getSizeMap();
-    CopyMemory(pBuf, &mapInfo, sizeof(MAPINFO));
-    
-    
     while (!central->isExit()) {
+        WaitForSingleObject(sCanMap, INFINITE);
+        mapInfo.size = central->getSizeMap();
+        mapInfo.canRegist = central->isTakingIn();
+        CopyMemory(pBuf, &mapInfo, sizeof(MAPINFO));
         ReleaseSemaphore(sCanSize, 1, NULL);
         WaitForSingleObject(sCanWrite, INFINITE);
         CopyMemory((PVOID)pMap, central->getCleanMap(), central->getSizeMap());
         ReleaseSemaphore(sCanRead, 1, NULL);
     }
+    CloseHandle(sCanMap);
     CloseHandle(sCanWrite);
     CloseHandle(sCanRead);
     CloseHandle(sCanSize);

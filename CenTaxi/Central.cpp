@@ -8,6 +8,8 @@ Central::Central()
 	this->textCleanMap = nullptr;
 	this->textFilledMap = nullptr;
 	this->sizeMap = 0;
+	this->takingIn = true;
+	this->waitTime = DEFAULT_WAIT_TIME;
 	this->hMutex = CreateMutex(NULL, FALSE, NULL);
 	if (this->hMutex == NULL)
 	{
@@ -37,6 +39,14 @@ int Central::getSizeMap() const
 {
 	return this->sizeMap;
 }
+int Central::getWaitTime() const
+{
+	return this->waitTime;
+}
+void Central::setWaitTime(int time)
+{
+	this->waitTime = time;
+}
 void Central::addCar(Car* car)
 {
 	this->cars.push_back(car);
@@ -47,9 +57,19 @@ void Central::setExit(BOOL exit)
 	this->exit = exit;
 }
 
+void Central::setTakingIn(BOOL val)
+{
+	this->takingIn = val;
+}
+
 BOOL Central::isExit()
 {
 	return this->exit;
+}
+
+BOOL Central::isTakingIn()
+{
+	return this->takingIn;
 }
 
 BOOL Central::carExists(TAXI* taxi)

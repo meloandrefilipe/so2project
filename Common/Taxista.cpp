@@ -4,6 +4,7 @@ Taxista::Taxista()
 {
 	this->move.dest_col = 0;
 	this->move.dest_row = 0;
+	this->canRegist = true;
 	this->randomMove = true;
 	this->smartPath = false;
 	this->townMap = nullptr;
@@ -94,6 +95,16 @@ void Taxista::disableRandomMove()
 void Taxista::resetSmartPath()
 {
 	this->smartPath = !this->smartPath;
+}
+
+BOOL Taxista::getCanRegist() const
+{
+	return this->canRegist;
+}
+
+void Taxista::setCanRegist(BOOL val)
+{
+	this->canRegist = val;
 }
 
 BOOL Taxista::getSmartPath() const

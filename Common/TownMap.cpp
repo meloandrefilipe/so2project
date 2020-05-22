@@ -94,7 +94,6 @@ void TownMap::buildTownFromText(TCHAR* textmap)
             else {
                 nodes.push_back(new Node(row, col, false));
             }
-            _tprintf(TEXT("ROW: %d COL: %d\n"),row, col);
             col++;
         }
         // Reset nas vars de coluna e linha

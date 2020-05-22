@@ -21,7 +21,7 @@ class Taxista
 	HANDLE hMutex;
 	BOOL randomMove;
 	BOOL smartPath;
-	
+	BOOL canRegist;
 public:
 	SMARTMOVE move;
 	DLLProfessores* dll;
@@ -38,6 +38,8 @@ public:
 	void enableRandomMove();
 	void disableRandomMove();
 	void resetSmartPath();
+	BOOL getCanRegist() const;
+	void setCanRegist(BOOL val);
 	BOOL getSmartPath() const;
 	BOOL isExit() const;
 	void setExit(BOOL exit);

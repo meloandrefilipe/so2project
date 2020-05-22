@@ -78,12 +78,6 @@ TCHAR* Car::getPlate()
 {
 	return this->plate;
 }
-
-TCHAR* Car::toString()
-{
-	return (TEXT("%d %d %s"), this->getRow(), this->getCol(), this->getPlate());
-}
-
 TAXI Car::toStruct()
 {
 	TAXI taxi; 

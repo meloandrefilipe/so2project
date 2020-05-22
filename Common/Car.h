@@ -10,7 +10,7 @@
 #define SPEED_SHIFTER -2500000LL // são 250ms para mudar a posição
 #define MAX_SPEED -2500000LL // a velocidade mais rapida para mudar posição é 250ms
 #define MIN_SPEED -20000000LL // a velocidade mais lenta para mudar posição é 2s
-#define DEFAULT_SPEED -10000000LL // a velocidade inicial é 1s
+#define DEFAULT_SPEED -10000000LL// a velocidade inicial é 1s
 #define NQ 10
 
 class Car {
@@ -35,7 +35,6 @@ public:
 	BOOL isSamePlate(TCHAR* plate);
 	LONGLONG getSpeed() const;
 	TCHAR * getPlate();
-	TCHAR * toString();
 	TAXI toStruct();
 	void speedUp();
 	void speedDown();
