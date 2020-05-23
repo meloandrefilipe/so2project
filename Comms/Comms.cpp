@@ -4,25 +4,23 @@ DWORD SendCar(Taxista* taxista) {
 	HANDLE hFileMapping, sCanRead, sCanWrite;
 	TAXI* pBuf;
 	TAXI taxi = taxista->car->toStruct();
-	DLLProfessores* dll = new DLLProfessores();
 
 	sCanWrite = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, SEMAPHORE_CAN_WRITE_CENCON);
 	sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_CAN_READ_CENCON);
 
 	if (sCanWrite == NULL || sCanRead == NULL) {
-		dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead!"), TYPE::ERRO);
-		delete dll;
+		taxista->dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead!"), TYPE::ERRO);
+
 		CloseHandle(sCanWrite);
 		CloseHandle(sCanRead);
 		return EXIT_FAILURE;
 	}
-	dll->regist((TCHAR*)SEMAPHORE_CAN_WRITE_CENCON, 3);
-	dll->regist((TCHAR*)SEMAPHORE_CAN_READ_CENCON, 3);
+	taxista->dll->regist((TCHAR*)SEMAPHORE_CAN_WRITE_CENCON, 3);
+	taxista->dll->regist((TCHAR*)SEMAPHORE_CAN_READ_CENCON, 3);
 	hFileMapping = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, SHAREDMEMORY_CEN_CON_ZONE);
 
 	if (hFileMapping == NULL) {
-		dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping!"), TYPE::ERRO);
-		delete dll;
+		taxista->dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping!"), TYPE::ERRO);
 		CloseHandle(sCanWrite);
 		CloseHandle(sCanRead);
 		CloseHandle(hFileMapping);
@@ -30,19 +28,17 @@ DWORD SendCar(Taxista* taxista) {
 	}
 	pBuf = (TAXI*)MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(TAXI));
 	if (pBuf == NULL) {
-		dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
-		delete dll;
+		taxista->dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
 		CloseHandle(sCanWrite);
 		CloseHandle(sCanRead);
 		CloseHandle(hFileMapping);
 		return EXIT_FAILURE;
 	}
-	dll->regist((TCHAR*)SHAREDMEMORY_CEN_CON_ZONE, 7);
+	taxista->dll->regist((TCHAR*)SHAREDMEMORY_CEN_CON_ZONE, 7);
 
 	WaitForSingleObject(sCanWrite, INFINITE);
 	CopyMemory((TAXI*)pBuf, &taxi, sizeof(TAXI));
 	ReleaseSemaphore(sCanRead, 1, NULL);
-	delete dll;
 	CloseHandle(sCanWrite);
 	CloseHandle(sCanRead);
 	UnmapViewOfFile(pBuf);

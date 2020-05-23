@@ -52,7 +52,7 @@ void TownMap::buildTown()
         // Reset nas vars de coluna e linha
         if (ch == '\n') {
             row++;
-            this->cols = col -1;
+            this->cols = col;
             col = 0;
         }
     }
@@ -99,7 +99,7 @@ void TownMap::buildTownFromText(TCHAR* textmap)
         // Reset nas vars de coluna e linha
         if (map[i] == '\n') {
             row++;
-            this->cols = col -1;
+            this->cols = col;
             col = 0;
         }
     }

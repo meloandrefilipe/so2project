@@ -44,18 +44,16 @@ int _tmain(int argc, TCHAR argv[]) {
 }
 
 DWORD WINAPI GetMapThread(LPVOID lpParam) {
-    HANDLE hFileMapping, hFileMappingMap, sCanRead, sCanWrite, sCanSize;
+    HANDLE hFileMapping, hFileMappingMap, sCanRead, sCanSize;
     MAPINFO* pBuf;
     LPCTSTR pMap;
     Cidade* cidade = (Cidade*)lpParam;
 
-    sCanWrite = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, SEMAPHORE_MAPINFO_WRITE);
     sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_MAPINFO_READ);
     sCanSize = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_MAPINFO_SIZE);
 
-    if (sCanWrite == NULL || sCanRead == NULL) {
+    if (sCanSize == NULL || sCanRead == NULL) {
         cidade->dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead!"), TYPE::ERRO);
-        CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(sCanSize);
         return EXIT_FAILURE;
@@ -68,7 +66,6 @@ DWORD WINAPI GetMapThread(LPVOID lpParam) {
 
     if (hFileMapping == NULL || hFileMappingMap == NULL) {
         cidade->dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping SHAREDMEMORY_ZONE_MAPINFO!"), TYPE::ERRO);
-        CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(sCanSize);
         CloseHandle(hFileMapping);
@@ -79,7 +76,6 @@ DWORD WINAPI GetMapThread(LPVOID lpParam) {
     pBuf = (MAPINFO*)MapViewOfFile(hFileMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(MAPINFO));
     if (pBuf == NULL) {
         cidade->dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
-        CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(sCanSize);
         CloseHandle(hFileMapping);
@@ -93,7 +89,6 @@ DWORD WINAPI GetMapThread(LPVOID lpParam) {
     pMap = (LPTSTR)MapViewOfFile(hFileMappingMap, FILE_MAP_ALL_ACCESS, 0, 0, pBuf->size);
     if (pMap == NULL) {
         cidade->dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
-        CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(sCanSize);
         CloseHandle(hFileMapping);
@@ -110,9 +105,7 @@ DWORD WINAPI GetMapThread(LPVOID lpParam) {
         Clear();
         _tprintf(TEXT("MapInfo\n"));
         _tprintf(TEXT("\n%s\n"), pMap);
-        ReleaseSemaphore(sCanWrite, 1, NULL);
     }
-    CloseHandle(sCanWrite);
     CloseHandle(sCanRead);
     CloseHandle(sCanSize);
     UnmapViewOfFile(pBuf);

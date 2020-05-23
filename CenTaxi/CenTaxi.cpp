@@ -14,6 +14,8 @@ int _tmain(int argc, TCHAR argv[]){
     Central* central = new Central();
 
 
+
+
     // Criar um named mutex para garantir que existe apenas uma CenTaxi a correr no sistema
     hMutexHandle = CreateMutex(NULL, TRUE, CENTAXI_MAIN_MUTEX);
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
@@ -27,7 +29,6 @@ int _tmain(int argc, TCHAR argv[]){
         central->dll->log((TCHAR*)TEXT("Não foi possivel criar o evento para encerrar!"), TYPE::ERRO);
         return EXIT_FAILURE;
     }
-
     _tprintf(TEXT("CenTaxi!\n"));
     sendMapThread = CreateThread(NULL, 0, SendMapThread, central, 0, &idSendMapThread);
     sendMapInfoThread = CreateThread(NULL, 0, SendMapInfoThread, central, 0, &idSendMapInfoThread);
@@ -406,7 +407,7 @@ DWORD WINAPI SendMapThread(LPVOID lpParam) {
 }
 
 DWORD WINAPI SendMapInfoThread(LPVOID lpParam) {
-    HANDLE hFile, hFileMapping, sCanRead, sCanWrite, sCanSize, hFileMappingMap;
+    HANDLE hFile, hFileMapping, sCanRead, sCanSize, hFileMappingMap;
     MAPINFO* pBuf;
     MAPINFO mapInfo;
     LPCTSTR pMap;
@@ -422,13 +423,11 @@ DWORD WINAPI SendMapInfoThread(LPVOID lpParam) {
     }
     central->dll->regist((TCHAR*)SHAREDMEMORY_MAPINFO, 6);
 
-    sCanWrite = CreateSemaphore(NULL, BUFFER_SIZE, BUFFER_SIZE, SEMAPHORE_MAPINFO_WRITE);
     sCanRead = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_MAPINFO_READ);
     sCanSize = CreateSemaphore(NULL, 0, BUFFER_SIZE, SEMAPHORE_MAPINFO_SIZE);
 
-    if (sCanWrite == NULL || sCanRead == NULL || sCanSize == NULL) {
+    if (sCanRead == NULL || sCanSize == NULL) {
         central->dll->log((TCHAR*)TEXT("Não foi possivel criar o semafro sCanWrite ou sCanRead!"), TYPE::ERRO);
-        CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(sCanSize);
         return EXIT_FAILURE;
@@ -442,7 +441,6 @@ DWORD WINAPI SendMapInfoThread(LPVOID lpParam) {
 
     if (hFileMapping == NULL || hFileMappingMap == NULL) {
         central->dll->log((TCHAR*)TEXT("Não foi possivel criar o file mapping SHAREDMEMORY_ZONE_SHAREMAP!"), TYPE::ERRO);
-        CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(sCanSize);
         CloseHandle(hFileMapping);
@@ -454,7 +452,6 @@ DWORD WINAPI SendMapInfoThread(LPVOID lpParam) {
 
     if (pBuf == NULL || pMap == NULL) {
         central->dll->log((TCHAR*)TEXT("Não foi possivel mapear o ficheiro!"), TYPE::ERRO);
-        CloseHandle(sCanWrite);
         CloseHandle(sCanRead);
         CloseHandle(hFileMapping);
         CloseHandle(hFileMappingMap);
@@ -468,7 +465,7 @@ DWORD WINAPI SendMapInfoThread(LPVOID lpParam) {
     CopyMemory(pBuf, &mapInfo, sizeof(MAPINFO));
 
 
-
+    
     while (!central->isExit()) {
         ReleaseSemaphore(sCanSize, 1, NULL);
         _tcscpy_s(map,  central->getSizeMap(), central->getFilledMap());
@@ -477,7 +474,6 @@ DWORD WINAPI SendMapInfoThread(LPVOID lpParam) {
         ReleaseSemaphore(sCanRead, 1, NULL);
     }
     delete wt;
-    CloseHandle(sCanWrite);
     CloseHandle(sCanRead);
     CloseHandle(sCanSize);
     UnmapViewOfFile(pBuf);

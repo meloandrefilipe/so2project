@@ -6,7 +6,6 @@
 using namespace std;
 
 typedef struct BREADTHFIRSTSEARCH_BESTPATH {
-	int cost;
 	vector<Node*> path;
 }BESTPATH;
 

@@ -13,11 +13,6 @@ using namespace std;
 // Vars
 TCHAR memCenCon[] = TEXT("Local\\MyFileMappingObject");
 
-// Structs 
-typedef struct THREAD_PARAMETERS {
-	Car* car;
-	BOOL exit;
-}PARAMETERS;
 
 // Threads
 DWORD WINAPI CommandsThread(LPVOID lpParam);

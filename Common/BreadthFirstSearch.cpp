@@ -10,7 +10,6 @@ BreadthFirstSearch::~BreadthFirstSearch(){
 BESTPATH BreadthFirstSearch::getBestPath(Node* src, Node* dest)
 {
 	BESTPATH data;
-	data.cost = (int)this->getShortestDistance(src, dest).size() -1;
 	data.path = this->getShortestDistance(src, dest);
 	reverse(data.path.begin(), data.path.end());
 	return data;

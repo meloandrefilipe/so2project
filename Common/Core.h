@@ -54,7 +54,7 @@
 #define COMMAND_SIZE 100
 
 //Ficheiros externos
-#define MAP_NAME "..\\Maps\\map2.txt"
+#define MAP_NAME "..\\Maps\\map1.txt"
 #define DLL_PATH_32 TEXT("..\\Dlls\\SO2_TP_DLL_32.dll")
 #define DLL_PATH_64 TEXT("..\\Dlls\\SO2_TP_DLL_64.dll")
 

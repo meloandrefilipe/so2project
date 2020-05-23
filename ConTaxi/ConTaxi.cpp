@@ -37,7 +37,7 @@ int _tmain(int argc ,TCHAR* argv[]) {
 		CloseHandle(closeThread);
 		CloseHandle(getMapThread);
 		delete taxista;
-		return EXIT_SUCCESS;
+		exit(EXIT_SUCCESS);
 	}
 	getCarDataThread = CreateThread(NULL, 0, GetCarDataThread, taxista, 0, &idGetCarDataThread);
 
@@ -199,21 +199,24 @@ DWORD WINAPI MoveCarThread(LPVOID lpParam) {
 				_tprintf(TEXT("\nA calcular caminho até <%d,%d>..."), row, col);
 				_tprintf(TEXT("\nCOMMAND: "));
 				BESTPATH path = bfs->getBestPath(src, dest);
-				INT i = 1;
+				INT i = 0;
 				LONGLONG speed = car->getSpeed();
 				_tprintf(TEXT("\nA ir até <%d,%d>..."), row, col);
 				_tprintf(TEXT("\nCOMMAND: "));
 				do {
+					i++;
 					if (speed != car->getSpeed() || i == 1) {
-						//_tprintf(TEXT("Tempo para o destino: %f\n"), (FLOAT)((path.path.size()- 1 - i) * (LONG)car->getSpeed()) / 10000000.f);
+						//_tprintf(TEXT("Tempo para o destino: %f\n"), (FLOAT)((path.path.size() - 1 - i) * (LONG)car->getSpeed()) / 10000000.f);
 					}
 					speed = car->getSpeed();
 					wt->updateTime(speed);
 					wt->wait();
 					car->setPosition(path.path[i]->getRow(), path.path[i]->getCol());
 					SendCar(taxista);
-					i++;
-				} while ((i < path.path.size() - 1 ) && (!taxista->getSmartPath()));
+
+				} while ((i < path.path.size() -1) && (!taxista->getSmartPath()));
+				wt->updateTime(WAIT_ONE_SECOND);
+				wt->wait();
 				_tprintf(TEXT("\nCheguei a posição desejada! <%d,%d>"), row, col);
 				_tprintf(TEXT("\nCOMMAND: "));
 				taxista->enableRandomMove();
@@ -402,7 +405,6 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 						taxista->dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
 						continue;
 					}
-					_tprintf(TEXT("COLS: %d ROWS: %d\n"), taxista->getMap()->getCols(), taxista->getMap()->getRows());
 					if (row > taxista->getMap()->getRows() || row < 0 || col > taxista->getMap()->getCols() || col < 0) {
 						taxista->dll->log((TCHAR*)TEXT("As coordenadas inseridas não pertencem ao mapa!"), TYPE::WARNING);
 					}
