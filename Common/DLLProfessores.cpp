@@ -37,6 +37,7 @@ DWORD DLLProfessores::log(TCHAR* message, TYPE type)
 {
     TCHAR str[BUFFER_SIZE] = TEXT("");
     tstringstream msg;
+    msg << endl;
     switch (type)
     {
     case TYPE::ERRO:

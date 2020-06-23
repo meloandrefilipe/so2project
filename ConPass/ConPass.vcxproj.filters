@@ -18,5 +18,16 @@
     <ClCompile Include="ConPass.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Estacao.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Estacao.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ConPass.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

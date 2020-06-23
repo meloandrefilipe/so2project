@@ -136,3 +136,15 @@ Node* TownMap::getNodeAt(int row, int col)
     }
     return nullptr;
 }
+
+BOOL TownMap::isStreet(int row, int col)
+{
+    vector<Node*> nodes = this->getNodes();
+    for (int i = 0; i < nodes.size(); i++)
+    {
+        if (nodes[i]->getCol() == col && nodes[i]->getRow() == row && nodes[i]->isRoad()) {
+            return true;
+        }
+    }
+    return false;
+}

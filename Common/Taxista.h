@@ -22,6 +22,8 @@ class Taxista
 	BOOL randomMove;
 	BOOL smartPath;
 	BOOL canRegist;
+	BOOL canInterest;
+	TCHAR* atransportar;
 public:
 	SMARTMOVE move;
 	DLLProfessores* dll;
@@ -32,8 +34,11 @@ public:
 
 	Node* getNodeAt(int row, int col);
 	TCHAR* getMapText();
+	TCHAR* getATransportar();
 	void setMap(TownMap* m);
 	void setMapSize(int size);
+	void transportar(TCHAR* id);
+	void clearATransportar();
 	BOOL isRandomMove() const;
 	void enableRandomMove();
 	void disableRandomMove();
@@ -42,6 +47,9 @@ public:
 	void setCanRegist(BOOL val);
 	BOOL getSmartPath() const;
 	BOOL isExit() const;
+	BOOL isInNq(PASSENGER p) const;
+	BOOL getCanInterest() const;
+	void setCanInterest(BOOL val);
 	void setExit(BOOL exit);
 	Node* getRandomRoad();
 	TownMap* getMap();

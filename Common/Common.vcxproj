@@ -139,19 +139,23 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BreadthFirstSearch.cpp" />
+    <ClCompile Include="BufferCircular.cpp" />
     <ClCompile Include="Car.cpp" />
     <ClCompile Include="DLLProfessores.cpp" />
     <ClCompile Include="Node.cpp" />
+    <ClCompile Include="Passageiro.cpp" />
     <ClCompile Include="Taxista.cpp" />
     <ClCompile Include="TownMap.cpp" />
     <ClCompile Include="WaitableTimer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BreadthFirstSearch.h" />
+    <ClInclude Include="BufferCircular.h" />
     <ClInclude Include="Car.h" />
     <ClInclude Include="Core.h" />
     <ClInclude Include="DLLProfessores.h" />
     <ClInclude Include="Node.h" />
+    <ClInclude Include="Passageiro.h" />
     <ClInclude Include="Taxista.h" />
     <ClInclude Include="TownMap.h" />
     <ClInclude Include="WaitableTimer.h" />

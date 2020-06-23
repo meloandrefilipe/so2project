@@ -21,5 +21,9 @@ DWORD WINAPI CloseThread(LPVOID lpParam);
 DWORD WINAPI GetCarDataThread(LPVOID lpParam);
 DWORD WINAPI GetMapThread(LPVOID lpParam);
 DWORD WINAPI MoveCarThread(LPVOID lpParam);
+DWORD WINAPI RespostaIntereseThread(LPVOID lpParam);
+DWORD WINAPI BufferCircularThread(LPVOID lpParam);
 
 // Functions
+void Clear();
+DWORD TransportClient(Taxista* taxista, TRANSPORT* transport);

@@ -8,8 +8,8 @@ int _tmain(int argc ,TCHAR* argv[]) {
 	_setmode(_fileno(stdout), _O_WTEXT);
 	_setmode(_fileno(stderr), _O_WTEXT);
 #endif
-	DWORD idCommandsThread, idCommunicationThread, idCloseThread, idGetCarDataThread, idGetMapThread, idMoveCarThread;
-	HANDLE hEventCanBoot,commandsThread, communicationThread, closeThread, getCarDataThread, getMapThread, moveCarThread;
+	DWORD idCommandsThread, idCloseThread, idGetCarDataThread, idGetMapThread, idMoveCarThread, idBufferCircular, idRespostaInterese;
+	HANDLE hEventCanBoot,commandsThread, closeThread, getCarDataThread, getMapThread, moveCarThread, bufferCircularThread, respostaIntereseThread;
 
 	Taxista* taxista = new Taxista();
 
@@ -22,6 +22,7 @@ int _tmain(int argc ,TCHAR* argv[]) {
 	_tprintf(TEXT("A ESPERA...\n"));
 	WaitForSingleObject(hEventCanBoot, INFINITE);
 	CloseHandle(hEventCanBoot);
+	Clear();
 	_tprintf(TEXT("ConTaxi\n"));
 	
 	closeThread = CreateThread(NULL, 0, CloseThread, taxista, 0, &idCloseThread);
@@ -43,26 +44,27 @@ int _tmain(int argc ,TCHAR* argv[]) {
 
 	WaitForSingleObject(getCarDataThread, INFINITE);
 
+	respostaIntereseThread = CreateThread(NULL, 0, RespostaIntereseThread, taxista, 0, &idRespostaInterese);
 	moveCarThread = CreateThread(NULL, 0, MoveCarThread, taxista, 0, &idMoveCarThread);
+	bufferCircularThread = CreateThread(NULL, 0, BufferCircularThread, taxista, 0, &idBufferCircular);
 	commandsThread = CreateThread(NULL, 0, CommandsThread, taxista, 0, &idCommandsThread);
-	communicationThread = CreateThread(NULL, 0, CommunicationThread, taxista, 0, &idCommunicationThread);
 
 
-	if (commandsThread == NULL || communicationThread == NULL || closeThread == NULL || moveCarThread == NULL) {
+	if (commandsThread == NULL  || closeThread == NULL || moveCarThread == NULL || bufferCircularThread == NULL) {
 		taxista->dll->log((TCHAR*)TEXT("Não foi possivel criar a Thread!"), TYPE::ERRO);
 		return EXIT_FAILURE;
 	}
 	
 	WaitForSingleObject(commandsThread, INFINITE);
 	WaitForSingleObject(moveCarThread, INFINITE);
-	WaitForSingleObject(communicationThread, INFINITE);
 	WaitForSingleObject(closeThread, INFINITE);
+	WaitForSingleObject(bufferCircularThread, INFINITE);
 
 	CloseHandle(getCarDataThread);
 	CloseHandle(moveCarThread);
 	CloseHandle(commandsThread);
 	CloseHandle(closeThread);
-	CloseHandle(communicationThread);
+	CloseHandle(bufferCircularThread);
 	delete taxista;
 	return EXIT_SUCCESS;
 }
@@ -77,24 +79,17 @@ DWORD WINAPI MoveCarThread(LPVOID lpParam) {
 	int oldCol = car->getCol();
 	Node* carNode = city->getNodeAt(car->getRow(), car->getCol());
 	Node* nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
-	WaitableTimer* wt = new WaitableTimer(car->getSpeed());
-	HANDLE hMutex;
-
-	hMutex = CreateMutex(NULL, FALSE, NULL);
-	if (hMutex == NULL){
-		CloseHandle(hMutex);
-		taxista->dll->log(((TCHAR*)TEXT("Contaxi Move CreateMutex")), TYPE::ERRO);
-		return EXIT_FAILURE;
-	}
+	WaitableTimer* wt = new WaitableTimer((LONGLONG)car->getSpeed()* WAIT_ONE_SECOND);
+	
 
 	while (!taxista->isExit()) {
 		if (taxista->isRandomMove()) { // Random move
-			WaitForSingleObject(hMutex, INFINITE);
 			oldRow = car->getRow();
 			oldCol = car->getCol();
-			wt->updateTime(car->getSpeed());
+			wt->updateTime((LONGLONG)car->getSpeed()* WAIT_ONE_SECOND);
 			wt->wait();
 			car->setPosition(nextMove->getRow(), nextMove->getCol());
+			car->setStatus(STATUS_TAXI::ALEATORIO);
 			SendCar(taxista);
 			carNode = city->getNodeAt(car->getRow(), car->getCol());
 			if (carNode->getNeighbours().size() > 2) {
@@ -183,51 +178,13 @@ DWORD WINAPI MoveCarThread(LPVOID lpParam) {
 					nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
 				}
 			}
-			ReleaseMutex(hMutex);
 		}
-		else { // SMART MOVE
-			WaitForSingleObject(hMutex, INFINITE);
-			do {
-				if (taxista->getSmartPath()) {
-					taxista->resetSmartPath();
-				}
-				int row = taxista->move.dest_row;
-				int col = taxista->move.dest_col;
-				Node* src = taxista->getNodeAt(taxista->car->getRow(), taxista->car->getCol());
-				Node* dest = taxista->getNodeAt(row, col);
-				BreadthFirstSearch* bfs = new BreadthFirstSearch(taxista->getMap());
-				_tprintf(TEXT("\nA calcular caminho até <%d,%d>..."), row, col);
-				_tprintf(TEXT("\nCOMMAND: "));
-				BESTPATH path = bfs->getBestPath(src, dest);
-				INT i = 0;
-				LONGLONG speed = car->getSpeed();
-				_tprintf(TEXT("\nA ir até <%d,%d>..."), row, col);
-				_tprintf(TEXT("\nCOMMAND: "));
-				do {
-					i++;
-					if (speed != car->getSpeed() || i == 1) {
-						//_tprintf(TEXT("Tempo para o destino: %f\n"), (FLOAT)((path.path.size() - 1 - i) * (LONG)car->getSpeed()) / 10000000.f);
-					}
-					speed = car->getSpeed();
-					wt->updateTime(speed);
-					wt->wait();
-					car->setPosition(path.path[i]->getRow(), path.path[i]->getCol());
-					SendCar(taxista);
-
-				} while ((i < path.path.size() -1) && (!taxista->getSmartPath()));
-				wt->updateTime(WAIT_ONE_SECOND);
-				wt->wait();
-				_tprintf(TEXT("\nCheguei a posição desejada! <%d,%d>"), row, col);
-				_tprintf(TEXT("\nCOMMAND: "));
-				taxista->enableRandomMove();
-				carNode = dest;
-				nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
-			} while (taxista->getSmartPath());
-			ReleaseMutex(hMutex);
+		else {
+			carNode = city->getNodeAt(car->getRow(), car->getCol());
+			nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
 		}
 	}
 	delete wt;
-	CloseHandle(hMutex);
 	return EXIT_SUCCESS;
 }
 
@@ -261,7 +218,19 @@ DWORD WINAPI GetCarDataThread(LPVOID lpParam) {
 	} while (exists);
 	Node* position = taxista->getRandomRoad();
 	taxista->car = new Car(GetCurrentProcessId(), position->getRow(), position->getCol(), plate);
+	SendCar(taxista);
 	_tprintf(TEXT("[CAR] Iniciado na posição (%d,%d)\n"), taxista->car->getRow(), taxista->car->getCol());
+
+	tstringstream msg;
+	msg << "\\\\.\\pipe\\" << "pipe_" << taxista->car->getId() << endl;
+
+	HANDLE hNamedPipe = CreateFile(msg.str().c_str(), GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hNamedPipe == INVALID_HANDLE_VALUE) {
+		taxista->dll->log((TCHAR*)TEXT("Erro a aceder ao named pipe!"), TYPE::ERRO);
+		return EXIT_FAILURE;
+	}
+	taxista->car->setPipeHandle(hNamedPipe);
+
 	return EXIT_SUCCESS;
 }
 
@@ -294,6 +263,8 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 		}
 		if (_tcscmp(pch, TEXT("exit")) == 0) {
 			taxista->setExit(true);
+			taxista->car->setStatus(STATUS_TAXI::SAIR);
+			SendCar(taxista);
 			_tprintf(TEXT("[SHUTDOWN] A Sair...\n"));
 			wt->wait();
 			delete wt;
@@ -336,7 +307,7 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 				if (_tcscmp(pch, TEXT("on")) == 0) {
 					taxista->dll->log((TCHAR*)TEXT("[AUTOPICKER] Ativado!"), TYPE::NOTIFICATION);
 					taxista->car->setAutopicker(true);
-
+					taxista->clearATransportar();
 				}
 				else if (_tcscmp(pch, TEXT("off")) == 0) {
 					taxista->dll->log((TCHAR*)TEXT("[AUTOPICKER] Desativado!"), TYPE::NOTIFICATION);
@@ -355,26 +326,12 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 
 			pch = _tcstok_s(something, TEXT(" "), &something);
 
-			int traveler = 0;
-			if (pch != NULL) {
-				try {
-					traveler = stoi(pch);
-				}
-				catch (invalid_argument) {
-					taxista->dll->log((TCHAR*)TEXT("Valor inválido!"), TYPE::WARNING);
-					break;
-				}
-				catch (out_of_range) {
-					taxista->dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
-					break;
-				}
-				taxista->dll->log((TCHAR*)(TEXT("Vou até ao passageiro #%s"), pch), TYPE::NOTIFICATION);
+			if (!taxista->car->getAutopicker()) {
+				taxista->transportar(pch);
 			}
 			else {
-				taxista->dll->log((TCHAR*)TEXT("O comando inserido não existe!"), TYPE::WARNING);
+				taxista->dll->log((TCHAR*)TEXT("Para utilizar este comando tem de desativar o autopicker! (ex: autopicker off)"), TYPE::WARNING);
 			}
-
-			// IMPLEMENTAR CODIGO DE TRANSPORTE DO PASSAGEIRO
 		}
 		else if (_tcscmp(pch, TEXT("goto")) == 0) {
 			pch = _tcstok_s(something, TEXT(" "), &something);
@@ -405,7 +362,7 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 						taxista->dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
 						continue;
 					}
-					if (row > taxista->getMap()->getRows() || row < 0 || col > taxista->getMap()->getCols() || col < 0) {
+					if (row > taxista->getMap()->getRows() || row < 0 || col > taxista->getMap()->getCols() - 1 || col < 0) {
 						taxista->dll->log((TCHAR*)TEXT("As coordenadas inseridas não pertencem ao mapa!"), TYPE::WARNING);
 					}
 					else if (!taxista->getNodeAt(row, col)->isRoad()) {
@@ -435,11 +392,6 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 	return EXIT_SUCCESS;
 }
 
-DWORD WINAPI CommunicationThread(LPVOID lpParam) {
-	Taxista* taxista = (Taxista*)lpParam;
-	return SendCar(taxista);
-}
-
 DWORD WINAPI CloseThread(LPVOID lpParam) {
 
 	Taxista* taxista = (Taxista*)lpParam;
@@ -460,4 +412,123 @@ DWORD WINAPI CloseThread(LPVOID lpParam) {
 	delete wt;
 	delete taxista;
 	exit(EXIT_SUCCESS);
+}
+
+DWORD WINAPI RespostaIntereseThread(LPVOID lpParam) {
+	Taxista* taxista = (Taxista*)lpParam;
+	BOOL readedNamedPipe;
+	DWORD noBytesRead;
+	TRANSPORT* transport = new TRANSPORT;
+	ZeroMemory(transport, sizeof(TRANSPORT));
+	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * 3);
+	while (!taxista->isExit()) {
+		readedNamedPipe = ReadFile(taxista->car->getPipeHandle(), (LPVOID)transport, sizeof(TRANSPORT), &noBytesRead, NULL);
+		if (!readedNamedPipe) {
+			taxista->dll->log((TCHAR*)TEXT("Não foi possivel ler do Named Pipe!"), TYPE::ERRO);
+			return EXIT_FAILURE;
+		}
+		switch (transport->status){
+		case STATUS_TRANSPORT::ACEITE:
+			_tprintf(TEXT("\nFui ACEITE para o transporte do passageiro %s!\nCOMMAND: "), transport->client.id);
+			taxista->car->setClient(transport->client.id);
+			TransportClient(taxista, transport);
+			taxista->setCanInterest(true);
+			break;
+		case STATUS_TRANSPORT::REJEITADO:
+			_tprintf(TEXT("\nFui REJEITADO para o transporte do passageiro %s!\nCOMMAND: "), transport->client.id);
+			taxista->setCanInterest(true);
+			break;
+		case STATUS_TRANSPORT::EXPULSO:
+			_tprintf(TEXT("\nFui expulso do sistema :'C!\nA sair..."));
+			taxista->setExit(true);
+			wt->wait();
+			delete wt;
+			exit(EXIT_SUCCESS);
+			break;
+		default:
+			break;
+		}
+	}
+	delete wt;
+	return EXIT_SUCCESS;
+}
+
+DWORD TransportClient(Taxista* taxista, TRANSPORT* transport) {
+	taxista->disableRandomMove();
+	srand((unsigned int)time(NULL));
+	Car* car = taxista->car;
+	TownMap* city = taxista->getMap();
+	vector<Node*> nodes = city->getNodes();
+	int oldRow = car->getRow();
+	int oldCol = car->getCol();
+	Node* carNode = city->getNodeAt(car->getRow(), car->getCol());
+	Node* nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
+	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * (LONGLONG)car->getSpeed());
+	_tprintf(TEXT("\nA viajar para o passageiro %s em <%d,%d>!\nCOMMAND: "), transport->client.id, transport->client.row, transport->client.col);
+	int row = transport->client.row;
+	int col = transport->client.col;
+	for (int r = 0; r < 2; r++){
+		if (r != 0) {
+			_tprintf(TEXT("\nA viajar para o destino <%d,%d>!\nCOMMAND: "), transport->client.dest_row, transport->client.dest_col);
+			row = transport->client.dest_row;
+			col = transport->client.dest_col;
+		}
+		Node* src = taxista->getNodeAt(taxista->car->getRow(), taxista->car->getCol());
+		Node* dest = taxista->getNodeAt(row, col);
+		BreadthFirstSearch* bfs = new BreadthFirstSearch(taxista->getMap());
+		_tprintf(TEXT("\nA calcular caminho até <%d,%d>..."), row, col);
+		_tprintf(TEXT("\nCOMMAND: "));
+		BESTPATH path = bfs->getBestPath(src, dest);
+		INT i = 0;
+		DOUBLE speed = car->getSpeed();
+		_tprintf(TEXT("\nA ir até <%d,%d>..."), row, col);
+		_tprintf(TEXT("\nCOMMAND: "));
+		do {
+			i++;
+			if (speed != car->getSpeed() || i == 1) {
+				_tprintf(TEXT("Tempo para o destino: %0.6g\n"), (DOUBLE)((path.path.size() - 1 - i) * car->getSpeed()));
+			}
+			speed = car->getSpeed();
+			wt->updateTime((LONGLONG)speed * WAIT_ONE_SECOND);
+			wt->wait();
+			car->setPosition(path.path[i]->getRow(), path.path[i]->getCol());
+			if (i == 1 && r== 0) {
+				taxista->car->setStatus(STATUS_TAXI::IRPASSAGEIRO);
+			}
+			else if (i == 1 && r == 1) {
+				taxista->car->setStatus(STATUS_TAXI::IRDESTINO);
+			}
+			else {
+				taxista->car->setStatus(STATUS_TAXI::NOCAMINHO);
+			}
+			SendCar(taxista);
+
+		} while ((i < path.path.size() - 1) && (!taxista->getSmartPath()));
+		wt->updateTime(WAIT_ONE_SECOND);
+		wt->wait();
+		_tprintf(TEXT("\nCheguei a posição desejada! <%d,%d>"), row, col);
+		_tprintf(TEXT("\nCOMMAND: "));
+		car->setPosition(dest->getRow(), dest->getCol());
+	}
+	
+	taxista->car->setStatus(STATUS_TAXI::ENTREGUE);
+	SendCar(taxista);
+	taxista->car->clearClient();
+	taxista->enableRandomMove();
+	return EXIT_SUCCESS;
+}
+
+DWORD WINAPI BufferCircularThread(LPVOID lpParam) {
+	Taxista* taxista = (Taxista*)lpParam;
+	return bufferCircular(taxista);
+}
+
+void Clear() {
+#if defined _WIN32
+	system("cls");
+#elif defined (__LINUX__) || defined(__gnu_linux__) || defined(__linux__)
+	system("clear");
+#elif defined (__APPLE__)
+	system("clear");
+#endif
 }

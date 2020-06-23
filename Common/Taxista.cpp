@@ -1,4 +1,5 @@
 #include "Taxista.h"
+#include <cstdlib>
 
 Taxista::Taxista()
 {
@@ -10,6 +11,7 @@ Taxista::Taxista()
 	this->townMap = nullptr;
 	this->car = nullptr;
 	this->exit = false;
+	this->canInterest = true;
 	this->textmap = nullptr;
 	this->mapSize = 0;
 	this->dll = new DLLProfessores();
@@ -19,6 +21,8 @@ Taxista::Taxista()
 		_tprintf(TEXT("Taxita CreateMutex error: %d\n"), GetLastError());
 		return;
 	}
+	this->atransportar = new TCHAR[PASSENGER_NAME_SIZE];
+	ZeroMemory(this->atransportar, sizeof(TCHAR) * PASSENGER_NAME_SIZE);
 }
 
 Taxista::~Taxista()
@@ -67,6 +71,11 @@ TCHAR* Taxista::getMapText()
 	return this->textmap;
 }
 
+TCHAR* Taxista::getATransportar()
+{
+	return this->atransportar;
+}
+
 void Taxista::setMap(TownMap* m)
 {
 	this->townMap = m;
@@ -75,6 +84,16 @@ void Taxista::setMap(TownMap* m)
 void Taxista::setMapSize(int size)
 {
 	this->mapSize = size;
+}
+
+void Taxista::transportar(TCHAR* id)
+{
+	_tcscpy_s(this->atransportar, PASSENGER_NAME_SIZE, id);
+}
+
+void Taxista::clearATransportar()
+{
+	ZeroMemory(this->atransportar, sizeof(TCHAR) * PASSENGER_NAME_SIZE);
 }
 
 BOOL Taxista::isRandomMove() const
@@ -115,6 +134,24 @@ BOOL Taxista::getSmartPath() const
 BOOL Taxista::isExit() const
 {
 	return this->exit;
+}
+
+BOOL Taxista::isInNq(PASSENGER p) const
+{
+	if ((abs(this->car->getRow() - p.row) <= this->car->getNq()) && (abs(this->car->getCol() - p.col) <= this->car->getNq())) {
+		return TRUE;
+	}
+	return FALSE;
+}
+
+BOOL Taxista::getCanInterest() const
+{
+	return this->canInterest;
+}
+
+void Taxista::setCanInterest(BOOL val)
+{
+	this->canInterest = val;
 }
 
 void Taxista::setExit(BOOL exit)

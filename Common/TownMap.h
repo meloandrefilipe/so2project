@@ -14,6 +14,7 @@ public:
 	~TownMap();
 	vector<Node*> getNodes();
 	Node* getNodeAt(int row, int col);
+	BOOL isStreet(int row, int col);
 
 	int getRows() const;
 	int getCols() const;
