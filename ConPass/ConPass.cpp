@@ -291,12 +291,16 @@ DWORD WINAPI ReadNamedPipe(LPVOID lpParam) {
 	Estacao* estacao = (Estacao*)lpParam;
 	while (!estacao->isExit()) {
 		PASSENGER p = estacao->readNamedPipe();
-		if (p.status != STATUS::REJEITADO) {
+		if (p.status != STATUS::REJEITADO && p.status != STATUS::SEMINTERESSE) {
 			Passageiro* client = estacao->updateClient(p);
 			estacao->execStatus(client);
 		}
-		else {
+		else if(p.status == STATUS::REJEITADO){
 			_tprintf(TEXT("\n[REJEITADO] O passageiro %s foi rejeitado!\nCOMMAND:"), p.id);
+			estacao->deletePassageiro(estacao->getPassageiro(p.id));
+		}
+		else {
+			_tprintf(TEXT("\n[SEM INTERESSE] O passageiro %s não recebeu interesse!\nCOMMAND:"), p.id);
 			estacao->deletePassageiro(estacao->getPassageiro(p.id));
 		}
 	}

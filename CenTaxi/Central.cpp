@@ -529,10 +529,10 @@ void Central::deleteClient(PASSENGER* p)
 {
 	WaitForSingleObject(this->hMutex, INFINITE);
 	Passageiro* passageiro = this->getPassageiro(p);
-	for (auto iter = this->clients.begin(); iter != this->clients.end();) {
+	for (auto iter = clients.begin(); iter != clients.end();) {
 		if (_tcscmp((*iter)->getId(), passageiro->getId()) == 0) {
 			delete* iter;
-			iter = this->clients.erase(iter);
+			iter = clients.erase(iter);
 			break;
 		}
 		else {

@@ -287,13 +287,14 @@ DWORD bufferCircular(Taxista* taxista) {
 					_tprintf(TEXT("\nMostrei interesse no %s\nCOMMAND:"), bc->dataArray[i].id);
 				}
 			}
-			else if (!taxista->car->getAutopicker() && taxista->getATransportar()[0] != '\0' && taxista->isInNq(bc->dataArray[bc->bufferPos])) {
-			//else if (!taxista->car->getAutopicker() && taxista->getATransportar()[0] != '\0') {
+			//else if (!taxista->car->getAutopicker() && taxista->getATransportar()[0] != '\0' && taxista->isInNq(bc->dataArray[bc->bufferPos])) {
+			else if (!taxista->car->getAutopicker() && taxista->getATransportar()[0] != '\0') {
 				DWORD event = WaitForSingleObject(hEvents[i], 30);
 				if (WAIT_OBJECT_0 == event) {
 					if (_tcscmp(bc->dataArray[i].id, taxista->getATransportar()) == 0) {
 						SendInterest(taxista->car->getPlate(), bc->dataArray[i].id);
 						taxista->setCanInterest(FALSE);
+						taxista->clearATransportar();
 						_tprintf(TEXT("\nMostrei interesse no %s\nCOMMAND:"), bc->dataArray[i].id);
 					}
 				}
