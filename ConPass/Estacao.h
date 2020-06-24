@@ -9,7 +9,7 @@ class Estacao
 	vector<Passageiro*> passageiros;
 	vector<HANDLE *> handles;
 	BOOL exit;
-	HANDLE hReadPipe, hWritePipe;
+	HANDLE hReadPipe, hWritePipe, hMutex;
 
 public:
 
@@ -22,9 +22,9 @@ public:
 	vector<HANDLE*> getHandles();
 	Passageiro* getPassageiro(TCHAR* id);
 	Passageiro* updateClient(PASSENGER p);
-	int getPassageirosSize() const;
 	BOOL isExit() const;
 
+	DWORD connectPipes();
 	void addPassageiro(Passageiro* p );
 	void deletePassageiro(Passageiro* p );
 	void execStatus(Passageiro* p);

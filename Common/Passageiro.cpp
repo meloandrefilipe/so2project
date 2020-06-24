@@ -39,10 +39,28 @@ Passageiro::Passageiro(PASSENGER* p)
 	}
 }
 
+Passageiro::Passageiro()
+{
+	this->id = new TCHAR[PASSENGER_NAME_SIZE];
+	this->plate = new TCHAR[TAXI_PLATE_SIZE];
+	ZeroMemory(this->plate, TAXI_PLATE_SIZE);
+	ZeroMemory(this->id, PASSENGER_NAME_SIZE);
+	this->row = -1;
+	this->col = -1;
+	this->dest_col = -1;
+	this->dest_row = -1;
+	this->status = STATUS::SAIR;
+	this->hMutex = CreateMutex(NULL, FALSE, NULL);
+	if (this->hMutex == NULL)
+	{
+		_tprintf(TEXT("Central CreateMutex error: %d\n"), GetLastError());
+		return;
+	}
+}
+
 Passageiro::~Passageiro()
 {
 	CloseHandle(this->hMutex);
-	_tprintf(TEXT("Passageiro %s saiu da aplicação!\n"), this->getId());
 }
 
 TCHAR* Passageiro::getId() const

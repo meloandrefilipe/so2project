@@ -9,7 +9,7 @@ int _tmain(int argc, TCHAR argv[]) {
 #endif
 
 	DWORD idCommandsThread, idCloseThread, idPipeReadThread;
-	HANDLE hMutex, hCommandsThread, hCloseThread, hCanBoot, hPipeReadThread;
+	HANDLE hMutex, hCommandsThread, hCloseThread, hCanBoot, hPipeReadThread, hEventBoot;
 
 
 	hCanBoot = CreateEvent(NULL, TRUE, FALSE, EVENT_BOOT_ALL);
@@ -18,11 +18,21 @@ int _tmain(int argc, TCHAR argv[]) {
 		return EXIT_FAILURE;
 	}
 	_tprintf(TEXT("A ESPERA...\n"));
-	Estacao* estacao = new Estacao();
 	WaitForSingleObject(hCanBoot, INFINITE);
 	CloseHandle(hCanBoot);
 	Clear();
 
+	Estacao* estacao = new Estacao();
+
+	hEventBoot = CreateEvent(NULL, TRUE, FALSE, EVENT_CONPASS_STARTED);
+	if (hEventBoot == NULL) {
+		_tprintf(TEXT("Não foi possivel criar o evento de boot!"));
+		return EXIT_FAILURE;
+	}
+
+	SetEvent(hEventBoot);
+	estacao->connectPipes();
+	
 
 	// Criar um named mutex para garantir que existe apenas uma ConPass a correr no sistema
 	hMutex = CreateMutex(NULL, TRUE, CONPASS_MAIN_MUTEX);
@@ -32,7 +42,7 @@ int _tmain(int argc, TCHAR argv[]) {
 		wt->wait();
 		delete wt;
 		delete estacao;
-		return EXIT_FAILURE;
+		exit(EXIT_FAILURE);
 	}
 
 	_tprintf(TEXT("CONPASS\n"));
@@ -57,6 +67,7 @@ int _tmain(int argc, TCHAR argv[]) {
 	WaitForSingleObject(hCommandsThread, INFINITE);
 
 	CloseHandle(hCommandsThread);
+	CloseHandle(hEventBoot);
 	CloseHandle(hCloseThread);
 	CloseHandle(hPipeReadThread);
 	CloseHandle(hMutex);
@@ -98,6 +109,19 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 		if (_tcscmp(pch, TEXT("exit")) == 0) {
 			estacao->setExit(true);
 			_tprintf(TEXT("[SHUTDOWN] A Sair...\n"));
+
+			Passageiro* client = new Passageiro();
+			ADDPASSENGER* ADD = new ADDPASSENGER;
+			ADD->client = client;
+			ADD->estacao = estacao;
+			DWORD idAddPassengerThread;
+			HANDLE hThread = CreateThread(NULL, 0, SendPassengerThread, ADD, 0, &idAddPassengerThread);
+			if (hThread == NULL) {
+				estacao->dll->log((TCHAR*)TEXT("Não foi possivel criar a Thread!"), TYPE::ERRO);
+				return EXIT_FAILURE;
+			}
+			estacao->addHandle(&hThread);
+
 			wt->wait();
 			delete wt;
 			delete estacao;
@@ -267,8 +291,14 @@ DWORD WINAPI ReadNamedPipe(LPVOID lpParam) {
 	Estacao* estacao = (Estacao*)lpParam;
 	while (!estacao->isExit()) {
 		PASSENGER p = estacao->readNamedPipe();
-		Passageiro* client = estacao->updateClient(p);
-		estacao->execStatus(client);
+		if (p.status != STATUS::REJEITADO) {
+			Passageiro* client = estacao->updateClient(p);
+			estacao->execStatus(client);
+		}
+		else {
+			_tprintf(TEXT("\n[REJEITADO] O passageiro %s foi rejeitado!\nCOMMAND:"), p.id);
+			estacao->deletePassageiro(estacao->getPassageiro(p.id));
+		}
 	}
 	return EXIT_SUCCESS;
 }

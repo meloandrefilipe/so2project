@@ -79,14 +79,14 @@ DWORD WINAPI MoveCarThread(LPVOID lpParam) {
 	int oldCol = car->getCol();
 	Node* carNode = city->getNodeAt(car->getRow(), car->getCol());
 	Node* nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
-	WaitableTimer* wt = new WaitableTimer((LONGLONG)car->getSpeed()* WAIT_ONE_SECOND);
+	WaitableTimer* wt = new WaitableTimer((LONGLONG)(WAIT_ONE_SECOND * car->getSpeed()));
 	
 
 	while (!taxista->isExit()) {
 		if (taxista->isRandomMove()) { // Random move
 			oldRow = car->getRow();
 			oldCol = car->getCol();
-			wt->updateTime((LONGLONG)car->getSpeed()* WAIT_ONE_SECOND);
+			wt->updateTime((LONGLONG)(WAIT_ONE_SECOND * car->getSpeed()));
 			wt->wait();
 			car->setPosition(nextMove->getRow(), nextMove->getCol());
 			car->setStatus(STATUS_TAXI::ALEATORIO);
@@ -463,7 +463,7 @@ DWORD TransportClient(Taxista* taxista, TRANSPORT* transport) {
 	int oldCol = car->getCol();
 	Node* carNode = city->getNodeAt(car->getRow(), car->getCol());
 	Node* nextMove = carNode->getNeighbours()[(int)rand() % carNode->getNeighbours().size()];
-	WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND * (LONGLONG)car->getSpeed());
+	WaitableTimer* wt = new WaitableTimer((LONGLONG)(WAIT_ONE_SECOND * car->getSpeed()));
 	_tprintf(TEXT("\nA viajar para o passageiro %s em <%d,%d>!\nCOMMAND: "), transport->client.id, transport->client.row, transport->client.col);
 	int row = transport->client.row;
 	int col = transport->client.col;
@@ -476,20 +476,18 @@ DWORD TransportClient(Taxista* taxista, TRANSPORT* transport) {
 		Node* src = taxista->getNodeAt(taxista->car->getRow(), taxista->car->getCol());
 		Node* dest = taxista->getNodeAt(row, col);
 		BreadthFirstSearch* bfs = new BreadthFirstSearch(taxista->getMap());
-		_tprintf(TEXT("\nA calcular caminho até <%d,%d>..."), row, col);
+		_tprintf(TEXT("\nA configurar o gps!"));
 		_tprintf(TEXT("\nCOMMAND: "));
 		BESTPATH path = bfs->getBestPath(src, dest);
 		INT i = 0;
 		DOUBLE speed = car->getSpeed();
-		_tprintf(TEXT("\nA ir até <%d,%d>..."), row, col);
-		_tprintf(TEXT("\nCOMMAND: "));
 		do {
 			i++;
 			if (speed != car->getSpeed() || i == 1) {
-				_tprintf(TEXT("Tempo para o destino: %0.6g\n"), (DOUBLE)((path.path.size() - 1 - i) * car->getSpeed()));
+				_tprintf(TEXT("Tempo para o destino: %0.6g segundos\n"), ((path.path.size() - 1 - i) * car->getSpeed()));
 			}
 			speed = car->getSpeed();
-			wt->updateTime((LONGLONG)speed * WAIT_ONE_SECOND);
+			wt->updateTime((LONGLONG)(WAIT_ONE_SECOND * car->getSpeed()));
 			wt->wait();
 			car->setPosition(path.path[i]->getRow(), path.path[i]->getCol());
 			if (i == 1 && r== 0) {

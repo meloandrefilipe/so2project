@@ -19,6 +19,7 @@ class Passageiro
 public:
 	Passageiro(TCHAR* id, int row, int col);
 	Passageiro(PASSENGER *p);
+	Passageiro();
 	~Passageiro();
 	TCHAR* getId() const;
 	int getRow() const;

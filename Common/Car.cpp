@@ -164,30 +164,31 @@ void Car::setPipeHandle(HANDLE pipeHandle)
 	ReleaseMutex(this->hMutex);
 }
 
-void Car::speedUp(){
+void Car::speedDown(){
 	WaitForSingleObject(this->hMutex, INFINITE);
-	if (this->getSpeed() > MAX_SPEED) {
-		this->setSpeed(this->getSpeed() - SPEED_SHIFTER);
-		_tprintf(TEXT("A velocidade do taxi foi aumentada em +0.25 casas por segundo\n"));
+	if (this->getSpeed() < MAX_SPEED) {
+		this->setSpeed(this->getSpeed() + SPEED);
+		_tprintf(TEXT("A velocidade do taxi foi aumentada para %0.6g\n"), this->getSpeed());
 	}
 	else {
 		this->setSpeed(MAX_SPEED);
-		_tprintf(TEXT("A velocidade do taxi está no maximo! (0.25 casas por segundo)\n"));
+		_tprintf(TEXT("A velocidade do taxi está no maximo!\n"));
 
 	}
 	ReleaseMutex(this->hMutex);
 }
 
-void Car::speedDown()
+void Car::speedUp()
 {
 	WaitForSingleObject(this->hMutex, INFINITE);
-	if (this->getSpeed() < MIN_SPEED) {
-		this->setSpeed(this->getSpeed() + SPEED_SHIFTER);
-		_tprintf(TEXT("A velocidade do taxi foi diminuida em -0.25 casas por segundo\n"));
+	if (this->getSpeed() > MIN_SPEED) {
+		this->setSpeed(this->getSpeed() - SPEED);
+		_tprintf(TEXT("A velocidade do taxi foi dimunida para %0.6g\n"), this->getSpeed());
 	}
 	else {
 		this->setSpeed(MIN_SPEED);
-		_tprintf(TEXT("A velocidade do taxi está no mínimo! (0.5 casas por segundo)\n"));
+		_tprintf(TEXT("A velocidade do taxi está no minimo!\n"));
+
 	}
 	ReleaseMutex(this->hMutex);
 }

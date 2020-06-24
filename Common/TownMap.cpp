@@ -14,7 +14,7 @@ TownMap::TownMap(TCHAR* textmap)
 }
 
 TownMap::~TownMap(){
-	_tprintf(TEXT("[MAP] O mapa presente em '%s' foi apagado da memôria!"), TEXT(MAP_NAME));
+    this->nodes.clear();
 }
 
 vector<Node*> TownMap::getNodes()

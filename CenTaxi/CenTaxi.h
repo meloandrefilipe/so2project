@@ -23,3 +23,4 @@ DWORD WINAPI SendMapThread(LPVOID lpParam);
 DWORD WINAPI SendMapInfoThread(LPVOID lpParam);
 DWORD WINAPI ConPassThread(LPVOID lpParam);
 DWORD WINAPI WaitForAnswers(LPVOID lpParam);
+DWORD WINAPI WaitForConpass(LPVOID lpParam);

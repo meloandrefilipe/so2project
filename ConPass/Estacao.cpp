@@ -6,27 +6,12 @@ Estacao::Estacao()
 	this->exit = false;
 	this->hReadPipe = NULL;
 	this->hWritePipe = NULL;
-	HANDLE hEventA = CreateEvent(NULL, TRUE, FALSE, EVENT_CONPASS_A);
-	HANDLE hEventB = CreateEvent(NULL, TRUE, FALSE, EVENT_CONPASS_B);
-	if (hEventA == NULL) {
-		_tprintf(TEXT("Não foi possivel criar o evento de espera pelo pipe!"));
+	this->hMutex = CreateMutex(NULL, FALSE, NULL);
+	if (this->hMutex == NULL)
+	{
+		_tprintf(TEXT("Central CreateMutex error: %d\n"), GetLastError());
 		return;
 	}
-	WaitForSingleObject(hEventA, INFINITE);
-	this->hWritePipe = CreateFile(NAMED_PIPE_CONPASS_A, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (this->hWritePipe == INVALID_HANDLE_VALUE) {
-		this->dll->log((TCHAR*)TEXT("Erro a aceder ao named pipe!"), TYPE::ERRO);
-		return;
-	}
-	WaitForSingleObject(hEventB, INFINITE);
-	this->hReadPipe = CreateFile(NAMED_PIPE_CONPASS_B, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (this->hReadPipe == INVALID_HANDLE_VALUE) {
-		this->dll->log((TCHAR*)TEXT("Erro a aceder ao named pipe!"), TYPE::ERRO);
-		return;
-	}
-
-	CloseHandle(hEventA);
-	CloseHandle(hEventB);
 
 }
 
@@ -35,6 +20,8 @@ Estacao::~Estacao()
 	delete this->dll;
 	CloseHandle(this->hReadPipe);
 	CloseHandle(this->hWritePipe);
+	ReleaseMutex(this->hMutex);
+	CloseHandle(this->hMutex);
 }
 
 vector<Passageiro*> Estacao::getPassageiros()
@@ -47,24 +34,53 @@ vector<HANDLE*> Estacao::getHandles()
 	return this->handles;
 }
 
+DWORD Estacao::connectPipes()
+{
+	HANDLE hEventA = CreateEvent(NULL, TRUE, FALSE, EVENT_CONPASS_A);
+	HANDLE hEventB = CreateEvent(NULL, TRUE, FALSE, EVENT_CONPASS_B);
+	if (hEventA == NULL) {
+		this->dll->log((TCHAR*)TEXT("Não foi possivel criar o evento de espera pelo pipe!"), TYPE::ERRO);
+		return EXIT_FAILURE;
+	}
+	WaitForSingleObject(hEventA, INFINITE);
+	this->hWritePipe = CreateFile(NAMED_PIPE_CONPASS_A, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (this->hWritePipe == INVALID_HANDLE_VALUE) {
+		this->dll->log((TCHAR*)TEXT("Erro a aceder ao named pipe!"), TYPE::ERRO);
+		return EXIT_FAILURE;
+	}
+	WaitForSingleObject(hEventB, INFINITE);
+	this->hReadPipe = CreateFile(NAMED_PIPE_CONPASS_B, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (this->hReadPipe == INVALID_HANDLE_VALUE) {
+		this->dll->log((TCHAR*)TEXT("Erro a aceder ao named pipe!"), TYPE::ERRO);
+		return EXIT_FAILURE;
+	}
+
+	CloseHandle(hEventA);
+	CloseHandle(hEventB);
+	return EXIT_SUCCESS;
+}
+
 void Estacao::addPassageiro(Passageiro* p)
 {
+	WaitForSingleObject(this->hMutex, INFINITE);
 	this->passageiros.push_back(p);
+	ReleaseMutex(this->hMutex);
 }
 
 void Estacao::deletePassageiro(Passageiro* p)
 {
-	vector<Passageiro*> passageiros = this->getPassageiros();
-	if (passageiros.size() > 0) {
-		int it = 0;
-		for (int i = 0; i < passageiros.size(); i++)
-		{
-			if (_tcscmp(passageiros[i]->getId(), p->getId()) == 0) {
-				it = i;
-			}
+	WaitForSingleObject(this->hMutex, INFINITE);
+	for (auto iter = passageiros.begin(); iter != passageiros.end();) {
+		if (_tcscmp((*iter)->getId(), p->getId()) == 0) {
+			delete* iter;
+			iter = passageiros.erase(iter);
+			break;
 		}
-		passageiros.erase(passageiros.begin() + it);
+		else {
+			++iter;
+		}
 	}
+	ReleaseMutex(this->hMutex);
 }
 
 void Estacao::execStatus(Passageiro* passageiro){
@@ -75,10 +91,6 @@ void Estacao::execStatus(Passageiro* passageiro){
 		case STATUS::ACEITE:
 			msg << "[ACEITE] " << "O passageiro " << passageiro->getId() << " entrou no sistema!" << endl;
 			this->addPassageiro(passageiro);
-			break;
-		case STATUS::REJEITADO:
-			msg << "[REJEITADO] " << "O passageiro " << passageiro->getId() << " foi rejeitado!" << endl;
-			this->deletePassageiro(passageiro);
 			break;
 		case STATUS::TRANSPORTAR:
 			msg << "[TRANSPORTAR] " << "Quero ser transportado!" << endl;
@@ -106,7 +118,7 @@ void Estacao::execStatus(Passageiro* passageiro){
 			passageiro->setStatus(STATUS::ACEITE);
 			break;
 		case STATUS::SEMINTERESSE:
-			msg << "[SEM TRANSPORTE] " << "O passageiro " << passageiro->getId() << " foi não recebeu pedidos de interesse de transporte!" << endl << "Tente novamente mais tarde!" << endl;
+			msg << "[SEM TRANSPORTE] " << "O passageiro " << passageiro->getId() << " não recebeu pedidos de interesse de transporte!" << endl << "Tente novamente mais tarde!" << endl;
 			passageiro->setStatus(STATUS::ACEITE);
 			break;
 		default:
@@ -133,10 +145,9 @@ void Estacao::addHandle(HANDLE* h)
 	this->handles.push_back(h);
 }
 
-
 Passageiro* Estacao::addMove(TCHAR* id, int row, int col)
 {
-	vector<Passageiro*> passageiros = this->getPassageiros();
+	WaitForSingleObject(this->hMutex, INFINITE);
 	for (int i = 0; i < passageiros.size(); i++)
 	{
 		if (_tcscmp(passageiros[i]->getId(), id) == 0) {
@@ -148,9 +159,11 @@ Passageiro* Estacao::addMove(TCHAR* id, int row, int col)
 			else {
 				passageiros[i]->setStatus(STATUS::ERRO);
 			}
+			ReleaseMutex(this->hMutex);
 			return passageiros[i];
 		}
 	}
+	ReleaseMutex(this->hMutex);
 	return nullptr;
 }
 
@@ -185,31 +198,31 @@ BOOL Estacao::writeNamedPipe(Passageiro* client)
 
 Passageiro* Estacao::getPassageiro(TCHAR* id)
 {
-	vector<Passageiro*> passageiros = this->getPassageiros();
+	WaitForSingleObject(this->hMutex, INFINITE);
 	for (int i = 0; i < passageiros.size(); i++)
 	{
 		if (_tcscmp(passageiros[i]->getId(), id) == 0) {
+			ReleaseMutex(this->hMutex);
 			return passageiros[i];
 		}
 	}
+	ReleaseMutex(this->hMutex);
 	return nullptr;
 }
 
 Passageiro* Estacao::updateClient(PASSENGER p)
 {
+	WaitForSingleObject(this->hMutex, INFINITE);
 	for (int i = 0; i < this->passageiros.size(); i++)
 	{
 		if (_tcscmp(this->passageiros[i]->getId(), p.id) == 0) {
 			this->passageiros[i]->update(p);
+			ReleaseMutex(this->hMutex);
 			return this->passageiros[i];
 		}
 	}
+	ReleaseMutex(this->hMutex);
 	return new Passageiro(&p);
-}
-
-int Estacao::getPassageirosSize() const
-{
-	return (int)this->passageiros.size();
 }
 
 BOOL Estacao::isExit() const

@@ -276,11 +276,10 @@ DWORD bufferCircular(Taxista* taxista) {
 		CloseHandle(hFileMapping);
 		return EXIT_FAILURE;
 	}
-	//DWORD visited = -1;
 	while (!taxista->isExit()) {
 		for (int i = 0; i <= bc->bufferPos; i++){
-			//if (taxista->isInNq(bc->dataArray[bc->bufferPos]) && taxista->getCanInterest() && taxista->car->getAutopicker()) {
-			if (taxista->getCanInterest() && taxista->car->getAutopicker()) {
+			if (taxista->isInNq(bc->dataArray[bc->bufferPos]) && taxista->getCanInterest() && taxista->car->getAutopicker()) {
+			/*if (taxista->getCanInterest() && taxista->car->getAutopicker()) {*/
 				DWORD event = WaitForSingleObject(hEvents[i], 30);
 				if (WAIT_OBJECT_0 == event) {
 					SendInterest(taxista->car->getPlate(), bc->dataArray[i].id);
@@ -288,8 +287,8 @@ DWORD bufferCircular(Taxista* taxista) {
 					_tprintf(TEXT("\nMostrei interesse no %s\nCOMMAND:"), bc->dataArray[i].id);
 				}
 			}
-			//else if (!taxista->car->getAutopicker() && taxista->getATransportar()[0] != '\0' && taxista->isInNq(bc->dataArray[bc->bufferPos])) {
-			else if (!taxista->car->getAutopicker() && taxista->getATransportar()[0] != '\0') {
+			else if (!taxista->car->getAutopicker() && taxista->getATransportar()[0] != '\0' && taxista->isInNq(bc->dataArray[bc->bufferPos])) {
+			//else if (!taxista->car->getAutopicker() && taxista->getATransportar()[0] != '\0') {
 				DWORD event = WaitForSingleObject(hEvents[i], 30);
 				if (WAIT_OBJECT_0 == event) {
 					if (_tcscmp(bc->dataArray[i].id, taxista->getATransportar()) == 0) {

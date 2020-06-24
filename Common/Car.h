@@ -7,10 +7,10 @@
 #include <strsafe.h>
 #include "Core.h"
 
-#define SPEED_SHIFTER 0.25 // são 250ms para mudar a posição
-#define MAX_SPEED 0.25 // a velocidade mais rapida para mudar posição é 250ms
-#define MIN_SPEED 2 // a velocidade mais lenta para mudar posição é 2s
-#define DEFAULT_SPEED 1// a velocidade inicial é 1s
+#define SPEED 0.25 // são 250ms para mudar a posição
+#define MAX_SPEED 2 // a velocidade mais rapida para mudar posição é 250ms
+#define MIN_SPEED 0.25 // a velocidade mais lenta para mudar posição é 2s
+#define DEFAULT_SPEED 1 // a velocidade inicial é 1s
 #define NQ 10
 
 class Car {

@@ -8,14 +8,12 @@ int _tmain(int argc, TCHAR argv[]){
     _setmode(_fileno(stderr), _O_WTEXT);
 #endif
 
-    DWORD idMainMenuThread, idCommunicationThread, idPlateValidatorThread, idSendMapThread, idSendMapInfoThread, idNewPassengersThread, idInterestThread;
-    HANDLE hMutexHandle, communicationThread, mainMenuThread, plateValidatorThread, sendMapThread, sendMapInfoThread, newPassengersThread, hInterestThread;
-    HANDLE hEventCanBoot;
+    DWORD idMainMenuThread, idCommunicationThread, idPlateValidatorThread, idSendMapThread, idSendMapInfoThread, idNewPassengersThread, idInterestThread, idWaitConpassThread;
+    HANDLE hSendMap, hWaitConpass, hReadInterest, hConpass, hSendMapInfo, hMainMenu, hComms, hPlate;
+    HANDLE hEventCanBoot, hMutexHandle;
 
     Central* central = new Central();
-
-
-
+    
 
     // Criar um named mutex para garantir que existe apenas uma CenTaxi a correr no sistema
     hMutexHandle = CreateMutex(NULL, TRUE, CENTAXI_MAIN_MUTEX);
@@ -31,46 +29,49 @@ int _tmain(int argc, TCHAR argv[]){
         return EXIT_FAILURE;
     }
 
-
-
-
     _tprintf(TEXT("CenTaxi!\n"));
-    sendMapThread = CreateThread(NULL, 0, SendMapThread, central, 0, &idSendMapThread);
-    hInterestThread = CreateThread(NULL, 0, ReadInterest, central, 0, &idInterestThread);
-    newPassengersThread = CreateThread(NULL, 0, ConPassThread, central, 0, &idNewPassengersThread);
-    sendMapInfoThread = CreateThread(NULL, 0, SendMapInfoThread, central, 0, &idSendMapInfoThread);
-    mainMenuThread = CreateThread(NULL, 0, MainMenuThread, central, 0, &idMainMenuThread);
-    communicationThread = CreateThread(NULL, 0, CommunicationThread, central, 0, &idCommunicationThread);
-    plateValidatorThread = CreateThread(NULL, 0, PlateValidatorThread, central, 0, &idPlateValidatorThread);
+    hSendMap = CreateThread(NULL, 0, SendMapThread, central, 0, &idSendMapThread);
+    hWaitConpass = CreateThread(NULL, 0, WaitForConpass, central, 0, &idWaitConpassThread);
+    hReadInterest = CreateThread(NULL, 0, ReadInterest, central, 0, &idInterestThread);
+    hConpass = CreateThread(NULL, 0, ConPassThread, central, 0, &idNewPassengersThread);
+    hSendMapInfo = CreateThread(NULL, 0, SendMapInfoThread, central, 0, &idSendMapInfoThread);
+    hMainMenu = CreateThread(NULL, 0, MainMenuThread, central, 0, &idMainMenuThread);
+    hComms = CreateThread(NULL, 0, CommunicationThread, central, 0, &idCommunicationThread);
+    hPlate = CreateThread(NULL, 0, PlateValidatorThread, central, 0, &idPlateValidatorThread);
 
-
-    if (mainMenuThread == NULL || communicationThread == NULL || sendMapThread == NULL || plateValidatorThread == NULL || newPassengersThread == NULL || hInterestThread == NULL) {
+  
+    if (hSendMap == NULL || 
+        hWaitConpass == NULL || 
+        hReadInterest == NULL || 
+        hConpass == NULL || 
+        hSendMapInfo == NULL || 
+        hMainMenu == NULL || 
+        hComms == NULL || 
+        hPlate == NULL) {
         central->dll->log((TCHAR*)TEXT("Não foi possivel criar a Thread!"), TYPE::ERRO);
         return EXIT_FAILURE;
     }
     SetEvent(hEventCanBoot);
 
 
+    WaitForSingleObject(hSendMap, INFINITE);
+    WaitForSingleObject(hReadInterest, INFINITE);
+    WaitForSingleObject(hConpass, INFINITE);
+    WaitForSingleObject(hSendMapInfo, INFINITE);
+    WaitForSingleObject(hMainMenu, INFINITE);
+    WaitForSingleObject(hComms, INFINITE);
+    WaitForSingleObject(hPlate, INFINITE);
+    WaitForSingleObject(hWaitConpass, INFINITE);
 
-    
-    WaitForSingleObject(mainMenuThread, INFINITE);
-    WaitForSingleObject(communicationThread, INFINITE);
-    WaitForSingleObject(plateValidatorThread, INFINITE);
-    WaitForSingleObject(sendMapThread, INFINITE);
-    WaitForSingleObject(newPassengersThread, INFINITE);
-    WaitForSingleObject(hInterestThread, INFINITE);
-    WaitForSingleObject(sendMapInfoThread, INFINITE);
-
-
-    CloseHandle(newPassengersThread);
-    CloseHandle(mainMenuThread);
-    CloseHandle(communicationThread);
-    CloseHandle(plateValidatorThread);
-    CloseHandle(sendMapThread);
+    CloseHandle(hSendMap);
+    CloseHandle(hWaitConpass);
+    CloseHandle(hReadInterest);
+    CloseHandle(hConpass);
+    CloseHandle(hSendMapInfo);
+    CloseHandle(hMainMenu);
+    CloseHandle(hComms);
+    CloseHandle(hPlate);
     CloseHandle(hEventCanBoot);
-    CloseHandle(sendMapInfoThread);
-    CloseHandle(hInterestThread);
-
 
     ReleaseMutex(hMutexHandle);
     CloseHandle(hMutexHandle);
@@ -525,22 +526,29 @@ DWORD WINAPI ConPassThread(LPVOID lpParam) {
     PASSENGER* passenger = new PASSENGER;
     ZeroMemory(passenger, sizeof(PASSENGER));
     while (!central->isExit()) {
-        vector<Passageiro*> passengers = central->getClients();
-        passenger = central->readConpassNP();
-        if (passenger != nullptr) {
-            passenger->status = central->validateClient(passenger);
-
-            if (passenger->status == STATUS::EMESPERA) {
-                DWORD idThread;
-                HANDLE hThread = CreateThread(NULL, 0, WaitForAnswers, central, 0, &idThread);
-                if (hThread == NULL) {
-                    central->dll->log((TCHAR*)TEXT("Não foi possivel criar a Thread para um cliente!"), TYPE::ERRO);
-                    return EXIT_FAILURE;
+        if (central->isPipesOn()) {
+            vector<Passageiro*> passengers = central->getClients();
+            passenger = central->readConpassNP();
+            if (passenger != nullptr) {
+                if (passenger->status == STATUS::SAIR) {
+                    central->closeConpass();
+                    delete passenger;
+                    return EXIT_SUCCESS;
                 }
-                central->addHandle(&hThread);
-            }
+                passenger->status = central->validateClient(passenger);
+                if (passenger->status == STATUS::EMESPERA) {
+                    DWORD idThread;
+                    HANDLE hThread = CreateThread(NULL, 0, WaitForAnswers, central, 0, &idThread);
+                    if (hThread == NULL) {
+                        central->dll->log((TCHAR*)TEXT("Não foi possivel criar a Thread para um cliente!"), TYPE::ERRO);
+                        return EXIT_FAILURE;
+                    }
+                    central->addHandle(&hThread);
+                }
 
-            central->writeConpassNP(passenger);
+                central->writeConpassNP(passenger);
+ 
+            }
         }
     }
     delete passenger;
@@ -622,7 +630,8 @@ DWORD WINAPI WaitForAnswers(LPVOID lpParam) {
     Central* central = (Central*)lpParam;
     WaitableTimer* wt = new WaitableTimer(central->getWaitTime() * WAIT_ONE_SECOND);
     wt->wait();
-    Passageiro* client = central->getPassageiro(&central->bufferCircular->readPassenger());
+    PASSENGER *p = &central->bufferCircular->readPassenger();
+    Passageiro* client = central->getPassageiro(p);
     _tprintf(TEXT("\nO passageiro %s recebeu %d interesses!\nCOMMAND:"), client->getId(), (int)client->getInterested().size());
 
     Car * car = client->getRandomInterested();
@@ -638,8 +647,25 @@ DWORD WINAPI WaitForAnswers(LPVOID lpParam) {
     else {
         client->setStatus(STATUS::SEMINTERESSE);
         central->writeConpassNP(&client->getStruct());
+        central->deleteClient(p);
     }
     
     delete wt;
     return EXIT_SUCCESS;
+}
+
+DWORD WINAPI WaitForConpass(LPVOID lpParam) {
+    Central* central = (Central*)lpParam;
+    HANDLE hConPass;
+    
+    hConPass = CreateEvent(NULL, TRUE, FALSE, EVENT_CONPASS_STARTED);
+    if (hConPass == NULL) {
+        _tprintf(TEXT("Não foi possivel criar o evento de espera!"));
+        return EXIT_FAILURE;
+    }
+    WaitForSingleObject(hConPass, INFINITE);
+    DWORD ret = central->connectConpass();
+    CloseHandle(hConPass);
+
+    return ret;
 }

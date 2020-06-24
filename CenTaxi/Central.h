@@ -18,6 +18,7 @@ class Central
 	int sizeMap;
 	int waitTime;
 	BOOL takingIn;
+	BOOL pipesOn;
 	vector<Passageiro*> clients;
 	vector<HANDLE*> handles;
 
@@ -49,7 +50,12 @@ public:
 	PASSENGER* readConpassNP();
     void writeConpassNP(PASSENGER* p);
 
+
+	BOOL isPipesOn();
+	void setPipesOn(BOOL val);
 	DWORD expulsar(Car* car);
+	DWORD connectConpass();
+	DWORD closeConpass();
 	DWORD sendAnswer(Car * car, Passageiro* client);
 	void setWaitTime(int time);
 	BOOL addCar(Car* car);

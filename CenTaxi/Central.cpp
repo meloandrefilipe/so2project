@@ -4,7 +4,7 @@ Central::Central()
 {
 	this->townMap = new TownMap();
 	this->dll = new DLLProfessores();
-
+	this->pipesOn = false;
 	this->exit = false;
 	this->textCleanMap = nullptr;
 	this->textFilledMap = nullptr;
@@ -13,51 +13,15 @@ Central::Central()
 	this->waitTime = DEFAULT_WAIT_TIME;
 	this->bufferCircular = new BufferCircular();
 	this->hMutex = CreateMutex(NULL, FALSE, NULL);
-	this->hConPassNPRead = NULL;
-	this->hConPassNPWrite = NULL;
+	this->hConPassNPRead = nullptr;
+	this->hConPassNPWrite = nullptr;
 	if (this->hMutex == NULL)
 	{
 		_tprintf(TEXT("Central CreateMutex error: %d\n"), GetLastError());
 		return;
 	}
 
-	// Create READ named pipe
-	this->hConPassNPRead = CreateNamedPipe(NAMED_PIPE_CONPASS_A, PIPE_ACCESS_INBOUND, PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT, 1, sizeof(PASSENGER), sizeof(PASSENGER), 0, NULL);
-	this->hConPassNPWrite = CreateNamedPipe(NAMED_PIPE_CONPASS_B, PIPE_ACCESS_OUTBOUND, PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT, 1, sizeof(PASSENGER), sizeof(PASSENGER), 0, NULL);
-	if (this->hConPassNPRead == INVALID_HANDLE_VALUE || this->hConPassNPWrite == INVALID_HANDLE_VALUE) {
-		this->dll->log((TCHAR*)TEXT("Não foi possivel criar o Named Pipe Conpass!"), TYPE::ERRO);
-		return;
-	}
-
-	HANDLE hConnectA = CreateEvent(NULL, TRUE, FALSE, EVENT_CONPASS_A);
-	HANDLE hConnectB = CreateEvent(NULL, TRUE, FALSE, EVENT_CONPASS_B);
-	if (hConnectA == NULL || hConnectB == NULL) {
-		_tprintf(TEXT("Não foi possivel criar o evento de espera pelo pipe conpass!"));
-		return;
-	}
-	SetEvent(hConnectA);
-	//connect named pipe
-	BOOL connectNamedPipeRead = ConnectNamedPipe(this->hConPassNPRead, NULL);
-	if (!connectNamedPipeRead) {
-		this->dll->log((TCHAR*)TEXT("Não foi possivel connectar ao Named Pipe Read Conpass!"), TYPE::ERRO);
-		return;
-	}
-	SetEvent(hConnectB);
-	BOOL connectNamedPipeWrite = ConnectNamedPipe(this->hConPassNPWrite, NULL);
-	if (!connectNamedPipeWrite) {
-		this->dll->log((TCHAR*)TEXT("Não foi possivel connectar ao Named Pipe Write Conpass!"), TYPE::ERRO);
-		return;
-	}
-
-
-
-	CloseHandle(hConnectA);
-	CloseHandle(hConnectB);
-
-
-	WaitForSingleObject(this->hMutex, INFINITE);
-	this->buildCleanMap();
-	ReleaseMutex(this->hMutex);
+	this->buildCleanMap(); // mutex no interior
 }
 
 Central::~Central()
@@ -89,12 +53,24 @@ int Central::getSizeMap() const
 {
 	return this->sizeMap;
 }
+
 int Central::getWaitTime() const
 {
 	return this->waitTime;
 }
-DWORD Central::expulsar(Car* car) {
 
+BOOL Central::isPipesOn()
+{
+	return this->pipesOn;
+}
+
+void Central::setPipesOn(BOOL val)
+{
+	this->pipesOn = val;
+}
+
+DWORD Central::expulsar(Car* car) {
+	WaitForSingleObject(this->hMutex, INFINITE);
 	DWORD noBytesWrite;
 	TRANSPORT* transport = new TRANSPORT;
 	ZeroMemory(&transport->client, sizeof(PASSENGER));
@@ -102,18 +78,79 @@ DWORD Central::expulsar(Car* car) {
 	BOOL writedNamedPipe = WriteFile(car->getPipeHandle(), (LPCVOID)transport, sizeof(TRANSPORT), &noBytesWrite, NULL);
 	if (!writedNamedPipe) {
 		this->dll->log((TCHAR*)TEXT("Não foi possivel escrever no Named Pipe do taxi!"), TYPE::ERRO);
+		ReleaseMutex(this->hMutex);
 		return EXIT_FAILURE;
 	}
 
 	BOOL fluchedFileBuffer = FlushFileBuffers(car->getPipeHandle());
 	if (!fluchedFileBuffer) {
 		this->dll->log((TCHAR*)TEXT("Não foi possivel submeter no Named Pipe do taxi!"), TYPE::ERRO);
+		ReleaseMutex(this->hMutex);
 		return EXIT_FAILURE;
 	}
+	ReleaseMutex(this->hMutex);
 	return EXIT_SUCCESS;
 }
+
+DWORD Central::connectConpass()
+{
+	WaitForSingleObject(this->hMutex, INFINITE);
+	// Create named pipes
+	this->hConPassNPRead = CreateNamedPipe(NAMED_PIPE_CONPASS_A, PIPE_ACCESS_INBOUND, PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT, 1, sizeof(PASSENGER), sizeof(PASSENGER), 0, NULL);
+	this->hConPassNPWrite = CreateNamedPipe(NAMED_PIPE_CONPASS_B, PIPE_ACCESS_OUTBOUND, PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT, 1, sizeof(PASSENGER), sizeof(PASSENGER), 0, NULL);
+	if (this->hConPassNPRead == INVALID_HANDLE_VALUE || this->hConPassNPWrite == INVALID_HANDLE_VALUE) {
+		this->dll->log((TCHAR*)TEXT("Não foi possivel criar o Named Pipe Conpass!"), TYPE::ERRO);
+		ReleaseMutex(this->hMutex);
+		return EXIT_FAILURE;
+	}
+
+	HANDLE hConnectA = CreateEvent(NULL, TRUE, FALSE, EVENT_CONPASS_A);
+	HANDLE hConnectB = CreateEvent(NULL, TRUE, FALSE, EVENT_CONPASS_B);
+	if (hConnectA == NULL || hConnectB == NULL) {
+		this->dll->log((TCHAR*)TEXT("Não foi possivel criar o evento de espera pelo pipe conpass!"), TYPE::ERRO);
+		ReleaseMutex(this->hMutex);
+		return EXIT_FAILURE;
+	}
+	SetEvent(hConnectA);
+	//connect named pipes
+	BOOL connectNamedPipeRead = ConnectNamedPipe(this->hConPassNPRead, NULL);
+	if (!connectNamedPipeRead) {
+		this->dll->log((TCHAR*)TEXT("Não foi possivel connectar ao Named Pipe Read Conpass!"), TYPE::ERRO);
+		ReleaseMutex(this->hMutex);
+		return EXIT_FAILURE;
+	}
+	SetEvent(hConnectB);
+	BOOL connectNamedPipeWrite = ConnectNamedPipe(this->hConPassNPWrite, NULL);
+	if (!connectNamedPipeWrite) {
+		this->dll->log((TCHAR*)TEXT("Não foi possivel connectar ao Named Pipe Write Conpass!"), TYPE::ERRO);
+		ReleaseMutex(this->hMutex);
+		return EXIT_FAILURE;
+	}
+
+	CloseHandle(hConnectA);
+	CloseHandle(hConnectB);
+	this->setPipesOn(true);
+	ReleaseMutex(this->hMutex);
+	return EXIT_SUCCESS;
+}
+
+DWORD Central::closeConpass()
+{
+	WaitForSingleObject(this->hMutex, INFINITE);
+	this->setPipesOn(false);
+	DisconnectNamedPipe(this->hConPassNPRead);
+	DisconnectNamedPipe(this->hConPassNPWrite);
+	CloseHandle(this->hConPassNPRead);
+	CloseHandle(this->hConPassNPWrite);
+	this->hConPassNPRead = nullptr;
+	this->hConPassNPWrite = nullptr;
+	ReleaseMutex(this->hMutex);
+	return EXIT_SUCCESS;
+}
+
 DWORD Central::sendAnswer(Car * car, Passageiro* client)
 {
+	WaitForSingleObject(this->hMutex, INFINITE);
 	DWORD noBytesWrite;
 	TRANSPORT* transport = new TRANSPORT;
 	transport->client = client->getStruct();
@@ -128,23 +165,29 @@ DWORD Central::sendAnswer(Car * car, Passageiro* client)
 		BOOL writedNamedPipe = WriteFile(cars[i]->getPipeHandle(), (LPCVOID)transport, sizeof(TRANSPORT), &noBytesWrite, NULL);
 		if (!writedNamedPipe) {
 			this->dll->log((TCHAR*)TEXT("Não foi possivel escrever no Named Pipe do taxi!"), TYPE::ERRO);
+			ReleaseMutex(this->hMutex);
 			return EXIT_FAILURE;
 		}
 
 		BOOL fluchedFileBuffer = FlushFileBuffers(cars[i]->getPipeHandle());
 		if (!fluchedFileBuffer) {
 			this->dll->log((TCHAR*)TEXT("Não foi possivel submeter no Named Pipe do taxi!"), TYPE::ERRO);
+			ReleaseMutex(this->hMutex);
 			return EXIT_FAILURE;
 		}
 	}
+	ReleaseMutex(this->hMutex);
 	return EXIT_SUCCESS;
 }
+
 void Central::setWaitTime(int time)
 {
 	this->waitTime = time;
 }
+
 BOOL Central::addCar(Car* car)
 {
+	WaitForSingleObject(this->hMutex, INFINITE);
 	// Create named pipe
 	tstringstream msg;
 	msg << "\\\\.\\pipe\\"  << "pipe_" << car->getId() << endl;
@@ -154,15 +197,18 @@ BOOL Central::addCar(Car* car)
 
 	if (hNamedPipe == INVALID_HANDLE_VALUE) {
 		this->dll->log((TCHAR*)TEXT("Não foi possivel criar o Named Pipe do carro!"), TYPE::ERRO);
+		ReleaseMutex(this->hMutex);
 		return FALSE;
 	}
 	BOOL connectNamedPipe = ConnectNamedPipe(hNamedPipe, NULL);
 	if (!connectNamedPipe) {
 		this->dll->log((TCHAR*)TEXT("Não foi possivel connectar ao Named Pipe do carro!"), TYPE::ERRO);
+		ReleaseMutex(this->hMutex);
 		return FALSE;
 	}
 	car->setPipeHandle(hNamedPipe);
 	this->cars.push_back(car);
+	ReleaseMutex(this->hMutex);
 	return TRUE;
 }
 
@@ -188,6 +234,7 @@ BOOL Central::isTakingIn()
 
 BOOL Central::carExists(TAXI* taxi)
 {
+	WaitForSingleObject(this->hMutex, INFINITE);
 	BOOL exists = false;
 	for (int i = 0; i < cars.size(); i++)
 	{
@@ -196,6 +243,7 @@ BOOL Central::carExists(TAXI* taxi)
 			break;
 		}
 	}
+	ReleaseMutex(this->hMutex);
 	return exists;
 }
 
@@ -206,25 +254,29 @@ vector<Car*> Central::getCars()
 
 Car* Central::getCar(TCHAR* matricula)
 {
-	vector<Car*> cars = this->getCars();
+	WaitForSingleObject(this->hMutex, INFINITE);
 	for (int i = 0; i < cars.size(); i++)
 	{
 		if (_tcscmp(cars[i]->getPlate(), matricula) == 0) {
+			ReleaseMutex(this->hMutex);
 			return cars[i];
 		}
 	}
+	ReleaseMutex(this->hMutex);
 	return nullptr;
 }
 
 Passageiro* Central::getClient(TCHAR* id)
 {
-	vector<Passageiro* > passageiros = this->getClients();
-	for ( int i = 0; i < passageiros.size(); i++)
+	WaitForSingleObject(this->hMutex, INFINITE);
+	for ( int i = 0; i < clients.size(); i++)
 	{
-		if (_tcscmp(passageiros[i]->getId(), id) == 0) {
-			return passageiros[i];
+		if (_tcscmp(clients[i]->getId(), id) == 0) {
+			ReleaseMutex(this->hMutex);
+			return clients[i];
 		}
 	}
+	ReleaseMutex(this->hMutex);
 	return nullptr;
 }
 
@@ -247,8 +299,20 @@ void Central::buildFilledMap()
 					break;
 				}
 			}
+			BOOL hasPerson = false;
+			for (int c = 0; c < clients.size(); c++)
+			{
+				if (clients[c]->getCol() == nodes[i]->getCol() && clients[c]->getRow() == nodes[i]->getRow()) {
+					hasPerson = true;
+					break;
+				}
+			}
+
 			if (hasCar) {
 				map << "C";
+			}
+			else if (hasPerson) {
+				map << "P";
 			}
 			else {
 				map << "_";
@@ -301,9 +365,7 @@ TownMap* Central::getTownMap()
 
 TCHAR* Central::getFilledMap()
 {
-	WaitForSingleObject(this->hMutex, INFINITE);
-	this->buildFilledMap();
-	ReleaseMutex(this->hMutex);
+	this->buildFilledMap(); // ja tem mutex no interior
 	return this->textFilledMap;
 }
 
@@ -321,16 +383,15 @@ vector<Passageiro*> Central::getClients()
 Passageiro* Central::getPassageiro(PASSENGER* p)
 {
 	WaitForSingleObject(this->hMutex, INFINITE);
-	vector<Passageiro*> clients = this->getClients();
 	int pos = -1;
-	for (int i = 0; i < clients.size(); i++) {
-		if (_tcscmp(clients[i]->getId(), p->id) == 0) {
+	for (int i = 0; i < this->clients.size(); i++) {
+		if (_tcscmp(this->clients[i]->getId(), p->id) == 0) {
 			pos = i;
 		}
 	}
 	ReleaseMutex(this->hMutex);
 	if (pos >= 0) {
-		return clients[pos];
+		return this->clients[pos];
 	}
 	else {
 		return nullptr;
@@ -343,7 +404,6 @@ PASSENGER* Central::readConpassNP()
 	PASSENGER* passenger = new PASSENGER;
 	ZeroMemory(passenger, sizeof(PASSENGER));
 	DWORD noBytesRead;
-	// Read From Pipe
 	BOOL readedNamedPipe = ReadFile(this->hConPassNPRead, (LPVOID)passenger, sizeof(PASSENGER), &noBytesRead, NULL);
 	if (!readedNamedPipe) {
 		this->dll->log((TCHAR*)TEXT("Não foi possivel ler do Named Pipe Conpass!"), TYPE::ERRO);
@@ -373,12 +433,16 @@ void Central::updateCar(TAXI* car)
 	WaitForSingleObject(this->hMutex, INFINITE);
 	if (car->status == STATUS_TAXI::SAIR) {
 		_tprintf(TEXT("\nO Taxi %s saiu de serviço!\nCOMMAND:"), car->plate);
+		ReleaseMutex(this->hMutex);
 		this->deleteCar(car);
+		
 		return;
 	}
 	if (car->status == STATUS_TAXI::ENTREGUE) {
 		_tprintf(TEXT("\nO Taxi %s entregou o passageiro %s!\nCOMMAND:"), car->plate, car->client);
 		Passageiro* p = this->getClient(car->client);
+		p->setCol(p->getDestCol());
+		p->setRow(p->getDestRow());
 		p->setStatus(STATUS::ENTREGUE);
 		this->writeConpassNP(&p->getStruct());
 		this->deleteClient(&p->getStruct());
@@ -387,6 +451,8 @@ void Central::updateCar(TAXI* car)
 		Passageiro* p = this->getClient(car->client);
 		p->setStatus(STATUS::NOCARRO);
 		this->writeConpassNP(&p->getStruct());
+		p->setCol(-1);
+		p->setRow(-1);
 	}
 	for (int i = 0; i < cars.size(); i++)
 	{
@@ -396,8 +462,6 @@ void Central::updateCar(TAXI* car)
 	}
 	ReleaseMutex(this->hMutex);
 }
-
-
 
 void Central::updateClient(PASSENGER* p)
 {
@@ -414,6 +478,7 @@ void Central::updateClient(PASSENGER* p)
 	}
 	ReleaseMutex(this->hMutex);
 }
+
 STATUS Central::validateClient(PASSENGER* p)
 {
 	if (p == nullptr) {
@@ -444,7 +509,7 @@ STATUS Central::validateClient(PASSENGER* p)
 			}
 		}
 	}
-	if (!exists) {
+	if (!exists && p->status == STATUS::NOVO) {
 		if (this->isStreet(p->row, p->col)) {
 			this->addClient(new Passageiro(p));
 			ReleaseMutex(this->hMutex);
@@ -459,19 +524,20 @@ STATUS Central::validateClient(PASSENGER* p)
 	return STATUS::REJEITADO;
 
 }
+
 void Central::deleteClient(PASSENGER* p)
 {
 	WaitForSingleObject(this->hMutex, INFINITE);
-	vector<Passageiro*> clients = this->getClients();
-	int pos = -1;
-	for (int i = 0; i < clients.size(); i++)
-	{
-		if (_tcscmp(clients[i]->getId(), p->id) == 0) {
-			pos = i;
+	Passageiro* passageiro = this->getPassageiro(p);
+	for (auto iter = this->clients.begin(); iter != this->clients.end();) {
+		if (_tcscmp((*iter)->getId(), passageiro->getId()) == 0) {
+			delete* iter;
+			iter = this->clients.erase(iter);
+			break;
 		}
-	}
-	if (pos != -1) {
-		clients.erase(clients.begin() + pos);
+		else {
+			++iter;
+		}
 	}
 	ReleaseMutex(this->hMutex);
 }
@@ -479,16 +545,16 @@ void Central::deleteClient(PASSENGER* p)
 void Central::deleteCar(TAXI* car)
 {
 	WaitForSingleObject(this->hMutex, INFINITE);
-	vector<Car*> cars = this->getCars();
-	int pos = -1;
-	for (int i = 0; i < cars.size(); i++)
-	{
-		if (cars[i]->isSamePlate(car->plate)) {
-			pos = i;
+	Car* pCar = this->getCar(car->plate);
+	for (auto iter = cars.begin(); iter != cars.end();) {
+		if (_tcscmp((*iter)->getPlate(), pCar->getPlate()) == 0) {
+			delete* iter;
+			iter = cars.erase(iter);
+			break;
 		}
-	}
-	if (pos != -1) {
-		cars.erase(cars.begin() + pos);
+		else {
+			++iter;
+		}
 	}
 	ReleaseMutex(this->hMutex);
 }
@@ -496,16 +562,15 @@ void Central::deleteCar(TAXI* car)
 void Central::deleteCar(Car* car)
 {
 	WaitForSingleObject(this->hMutex, INFINITE);
-	vector<Car*> cars = this->getCars();
-	int pos = -1;
-	for (int i = 0; i < cars.size(); i++)
-	{
-		if (cars[i]->isSamePlate(car->getPlate())) {
-			pos = i;
+	for (auto iter = cars.begin(); iter != cars.end();) {
+		if (_tcscmp((*iter)->getPlate(), car->getPlate()) == 0) {
+			delete* iter;
+			iter = cars.erase(iter);
+			break;
 		}
-	}
-	if (pos != -1) {
-		cars.erase(cars.begin() + pos);
+		else {
+			++iter;
+		}
 	}
 	ReleaseMutex(this->hMutex);
 }
@@ -516,16 +581,19 @@ void Central::addClient(Passageiro* p)
 	this->clients.push_back(p);
 	ReleaseMutex(this->hMutex);
 }
+
 vector<HANDLE*> Central::getHandles()
 {
 	return this->handles;
 }
+
 void Central::addHandle(HANDLE * h)
 {
 	WaitForSingleObject(this->hMutex, INFINITE);
 	this->handles.push_back(h);
 	ReleaseMutex(this->hMutex);
 }
+
 void Central::addInterest(Car * car, Passageiro* client)
 {
 	WaitForSingleObject(this->hMutex, INFINITE);
