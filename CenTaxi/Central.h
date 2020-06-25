@@ -48,6 +48,7 @@ public:
 	vector<Passageiro*> getClients();
 	Passageiro* getPassageiro(PASSENGER* p);
 	PASSENGER* readConpassNP();
+	MAPINFODATA getMapInfoData();
     void writeConpassNP(PASSENGER* p);
 
 

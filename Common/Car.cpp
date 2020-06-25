@@ -10,6 +10,7 @@ Car::Car(int id, int row, int col, TCHAR * plate){
 	this->plate = new TCHAR[TAXI_PLATE_SIZE];
 	this->client = new TCHAR[PASSENGER_NAME_SIZE];
 	ZeroMemory(this->client, sizeof(TCHAR) * PASSENGER_NAME_SIZE);
+	ZeroMemory(this->plate, sizeof(TCHAR) * TAXI_PLATE_SIZE);
 	_tcscpy_s(this->plate, TAXI_PLATE_SIZE, plate);
 	this->hMutex = CreateMutex(NULL, FALSE, NULL);
 	this->status = STATUS_TAXI::ALEATORIO;
@@ -25,13 +26,15 @@ Car::Car(TAXI* taxi){
 	this->col = taxi->col;
 	this->row = taxi->row;
 	this->speed = taxi->speed;
-	this->status = STATUS_TAXI::ALEATORIO;
+	this->status = taxi->status;
 	this->nq = taxi->nq;
 	this->autopicker = taxi->autopicker;
 	this->plate = new TCHAR[TAXI_PLATE_SIZE];
 	this->client = new TCHAR[PASSENGER_NAME_SIZE];
 	ZeroMemory(this->client, sizeof(TCHAR) * PASSENGER_NAME_SIZE);
+	ZeroMemory(this->plate, sizeof(TCHAR) * TAXI_PLATE_SIZE);
 	_tcscpy_s(this->plate, TAXI_PLATE_SIZE,taxi->plate);
+	_tcscpy_s(this->client, PASSENGER_NAME_SIZE, taxi->client);
 	this->hMutex = CreateMutex(NULL, FALSE, NULL);
 	this->hNamedPipe = NULL;
 }
@@ -39,7 +42,7 @@ Car::Car(TAXI* taxi){
 Car::~Car()
 {
 	delete this->plate;
-	_tprintf(TEXT("Car %s destroyed.\n"), this->getPlate());
+	delete this->client;
 	if (this->hNamedPipe != NULL) {
 		DisconnectNamedPipe(this->hNamedPipe);
 		CloseHandle(this->hNamedPipe);

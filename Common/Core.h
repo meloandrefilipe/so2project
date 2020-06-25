@@ -81,6 +81,12 @@
 #define BUFFER_CIRCULAR_SIZE 5
 
 
+// Vars
+
+#define MAX_CARS 7
+#define MAX_CLIENTS 10
+
+
 //Permitir que o mesmo código possa funcionar para ASCII ou UNICODE
 #ifdef UNICODE
 #define tcout wcout
@@ -136,6 +142,15 @@ typedef struct NAMEDPIPE_CONPASS_PASSENGER_STRUCT {
 	STATUS status;
 	TCHAR plate[TAXI_PLATE_SIZE];
 }PASSENGER;
+
+typedef struct SHAREDMEMORY_MAPINFODATA_STRUCT {
+	int size;
+	TAXI cars[MAX_CARS];
+	PASSENGER clients[MAX_CLIENTS];
+	int sizeClients;
+	int sizeCars;
+}MAPINFODATA;
+
 
 typedef struct NAMEDPIPE_CONTAXI {
 	PASSENGER client;

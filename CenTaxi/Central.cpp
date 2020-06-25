@@ -399,14 +399,48 @@ Passageiro* Central::getPassageiro(PASSENGER* p)
 
 }
 
+MAPINFODATA Central::getMapInfoData()
+{
+	WaitForSingleObject(this->hMutex, INFINITE);
+	MAPINFODATA mapinfo;
+
+	//ZeroMemory(mapinfo.passengers, MAX_CLIENTS);
+	ZeroMemory(mapinfo.cars, MAX_CARS);
+	int sizeClients = (int)this->clients.size();
+	int sizeCars = (int)this->cars.size();
+	if (sizeClients > MAX_CLIENTS) {
+		sizeClients = MAX_CLIENTS;
+	}
+	if (sizeCars > MAX_CARS) {
+		sizeCars = MAX_CARS;
+	}
+
+	mapinfo.size = this->getSizeMap();
+	mapinfo.sizeCars = sizeCars;
+	mapinfo.sizeClients = sizeClients;
+
+	for (int i = 0; i < sizeClients; i++){
+		mapinfo.clients[i] = this->clients[i]->getStruct();
+	}
+	for (int c = 0; c < sizeCars; c++) {
+		mapinfo.cars[c] = this->cars[c]->toStruct();
+	}
+
+	ReleaseMutex(this->hMutex);
+	return mapinfo;
+}
+
 PASSENGER* Central::readConpassNP()
 {
 	PASSENGER* passenger = new PASSENGER;
 	ZeroMemory(passenger, sizeof(PASSENGER));
 	DWORD noBytesRead;
 	BOOL readedNamedPipe = ReadFile(this->hConPassNPRead, (LPVOID)passenger, sizeof(PASSENGER), &noBytesRead, NULL);
-	if (!readedNamedPipe) {
+	if (!readedNamedPipe && !this->isExit()) {
 		this->dll->log((TCHAR*)TEXT("Não foi possivel ler do Named Pipe Conpass!"), TYPE::ERRO);
+		return nullptr;
+	}
+	else if (!readedNamedPipe && this->isExit()){
 		return nullptr;
 	}
 	return passenger;
