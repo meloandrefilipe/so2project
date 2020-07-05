@@ -295,6 +295,7 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 					continue;
 				}
 				taxista->car->setNq(val);
+				taxista->dll->log((TCHAR*)TEXT("[NQ] O valor de nq foi alterado!"), TYPE::NOTIFICATION);
 			}
 			else {
 				taxista->dll->log((TCHAR*)TEXT("O comando inserido não existe!"), TYPE::WARNING);
@@ -328,6 +329,7 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 
 			if (!taxista->car->getAutopicker()) {
 				taxista->transportar(pch);
+				taxista->dll->log((TCHAR*)TEXT("[TRANSPORTAR] Mostrei o meu interesse no passageiro!"), TYPE::NOTIFICATION);
 			}
 			else {
 				taxista->dll->log((TCHAR*)TEXT("Para utilizar este comando tem de desativar o autopicker! (ex: autopicker off)"), TYPE::WARNING);

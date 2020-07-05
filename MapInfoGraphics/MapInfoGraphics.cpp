@@ -40,7 +40,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     closeThread = CreateThread(NULL, 0, CloseThread, cidade, 0, &idCloseThread);
 
 
-    if (getMapInfoThread == NULL) {
+    if (getMapInfoThread == NULL || closeThread == NULL) {
         cidade->dll->log((TCHAR*)TEXT("Não foi possivel criar a Thread!"), TYPE::ERRO);
         return EXIT_FAILURE;
     }
@@ -343,6 +343,7 @@ void MouseClick(HWND hWnd, HDC hdc, LPARAM lParam) {
     }
  
 }
+
 void MouseHover(HWND hWnd, HDC hdc, LPARAM lParam) {
     int mouse_x = GET_X_LPARAM(lParam);
     int mouse_y = GET_Y_LPARAM(lParam);
@@ -371,14 +372,18 @@ void MouseHover(HWND hWnd, HDC hdc, LPARAM lParam) {
         }
     }
     Car* car = cidade->getCarAt(row, col);
+    tstringstream msg;
     if (car != nullptr) {
-        tstringstream msg;
         msg << "Matricula: "<< car->getPlate() << endl;
         msg << "Posição atual: " << car->getRow() << ", " << car->getCol() << endl;
         if (_tcscmp(car->getClient(), TEXT("")) != 0) {
             msg << "Passageiro destinado: " << car->getClient() << endl;
         }
         MessageBox(hWnd, msg.str().c_str(), TEXT("TÁXI"), MB_OK);
+    }
+    else {
+        msg << "<"<< row << "," << col << ">" << endl;
+        TextOut(hdc, 0, 0, msg.str().c_str(), sizeof(msg.str().c_str()));
     }
 
 }
