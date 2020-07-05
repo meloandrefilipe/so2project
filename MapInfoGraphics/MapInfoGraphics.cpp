@@ -383,7 +383,7 @@ void MouseHover(HWND hWnd, HDC hdc, LPARAM lParam) {
     }
     else {
         msg << "<"<< row << "," << col << ">" << endl;
-        TextOut(hdc, 0, 0, msg.str().c_str(), sizeof(msg.str().c_str()));
+        TextOut(hdc, 0, 0, msg.str().c_str(), msg.str().size());
     }
 
 }
