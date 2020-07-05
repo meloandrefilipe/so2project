@@ -387,6 +387,7 @@ Passageiro* Central::getPassageiro(PASSENGER* p)
 	for (int i = 0; i < this->clients.size(); i++) {
 		if (_tcscmp(this->clients[i]->getId(), p->id) == 0) {
 			pos = i;
+			break;
 		}
 	}
 	ReleaseMutex(this->hMutex);
@@ -403,8 +404,6 @@ MAPINFODATA Central::getMapInfoData()
 {
 	WaitForSingleObject(this->hMutex, INFINITE);
 	MAPINFODATA mapinfo;
-
-	//ZeroMemory(mapinfo.passengers, MAX_CLIENTS);
 	ZeroMemory(mapinfo.cars, MAX_CARS);
 	int sizeClients = (int)this->clients.size();
 	int sizeCars = (int)this->cars.size();
@@ -418,6 +417,8 @@ MAPINFODATA Central::getMapInfoData()
 	mapinfo.size = this->getSizeMap();
 	mapinfo.sizeCars = sizeCars;
 	mapinfo.sizeClients = sizeClients;
+	mapinfo.rows = this->getTownMap()->getRows();
+	mapinfo.cols = this->getTownMap()->getCols();
 
 	for (int i = 0; i < sizeClients; i++){
 		mapinfo.clients[i] = this->clients[i]->getStruct();
@@ -462,34 +463,40 @@ void Central::writeConpassNP(PASSENGER* p)
 	}
 }
 
-void Central::updateCar(TAXI* car)
-{
+void Central::updateCar(TAXI* car){
 	WaitForSingleObject(this->hMutex, INFINITE);
 	if (car->status == STATUS_TAXI::SAIR) {
 		_tprintf(TEXT("\nO Taxi %s saiu de serviço!\nCOMMAND:"), car->plate);
 		ReleaseMutex(this->hMutex);
 		this->deleteCar(car);
-		
 		return;
 	}
 	if (car->status == STATUS_TAXI::ENTREGUE) {
 		_tprintf(TEXT("\nO Taxi %s entregou o passageiro %s!\nCOMMAND:"), car->plate, car->client);
 		Passageiro* p = this->getClient(car->client);
+		p->setTimeToArrive(car->timeToDestiny);
 		p->setCol(p->getDestCol());
 		p->setRow(p->getDestRow());
 		p->setStatus(STATUS::ENTREGUE);
 		this->writeConpassNP(&p->getStruct());
 		this->deleteClient(&p->getStruct());
 	}
+	if (car->status == STATUS_TAXI::IRPASSAGEIRO) {
+		Passageiro* p = this->getClient(car->client);
+		p->setTimeToArrive(car->timeToDestiny);
+		p->setStatus(STATUS::ACAMINHO);
+		p->setPlate(car->plate);
+		this->writeConpassNP(&p->getStruct());
+	}
 	if (car->status == STATUS_TAXI::IRDESTINO) {
 		Passageiro* p = this->getClient(car->client);
+		p->setTimeToArrive(car->timeToDestiny);
 		p->setStatus(STATUS::NOCARRO);
 		this->writeConpassNP(&p->getStruct());
 		p->setCol(-1);
 		p->setRow(-1);
 	}
-	for (int i = 0; i < cars.size(); i++)
-	{
+	for (int i = 0; i < cars.size(); i++){
 		if (cars[i]->isSamePlate(car->plate)) {
 			cars[i]->update(car);
 		}

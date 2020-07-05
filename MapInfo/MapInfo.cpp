@@ -1,5 +1,9 @@
 #include "MapInfo.h"
 
+
+
+
+
 int _tmain(int argc, TCHAR argv[]) {
 
 #ifdef UNICODE
@@ -23,6 +27,7 @@ int _tmain(int argc, TCHAR argv[]) {
     CloseHandle(hEventCanBoot);
     _tprintf(TEXT("MapInfo\n"));
 
+
     getMapInfoThread = CreateThread(NULL, 0, GetMapThread, cidade, 0, &idGetMapInfoThread);
     closeThread = CreateThread(NULL, 0, CloseThread, cidade, 0, &idCloseThread);
 
@@ -39,6 +44,8 @@ int _tmain(int argc, TCHAR argv[]) {
     CloseHandle(hEventCanBoot);
     CloseHandle(closeThread);
     delete  cidade;
+
+
 
     return EXIT_SUCCESS;
 }
@@ -119,7 +126,6 @@ DWORD WINAPI GetMapThread(LPVOID lpParam) {
     return EXIT_SUCCESS;
 }
 
-
 DWORD WINAPI CloseThread(LPVOID lpParam) {
 
     HANDLE hEventClose;
@@ -142,7 +148,6 @@ DWORD WINAPI CloseThread(LPVOID lpParam) {
     delete cidade;
     exit(EXIT_SUCCESS);
 }
-
 
 
 void Clear(){

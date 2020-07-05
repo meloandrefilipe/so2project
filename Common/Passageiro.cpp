@@ -17,6 +17,7 @@ Passageiro::Passageiro(TCHAR* id, int row, int col)
 		_tprintf(TEXT("Central CreateMutex error: %d\n"), GetLastError());
 		return;
 	}
+	this->timeToArrive = 0;
 }
 
 Passageiro::Passageiro(PASSENGER* p)
@@ -30,6 +31,7 @@ Passageiro::Passageiro(PASSENGER* p)
 	this->dest_col = p->dest_col;
 	this->dest_row = p->dest_row;
 	this->status = p->status;
+	this->timeToArrive = p->timeToArrive;
 	this->hMutex = CreateMutex(NULL, FALSE, NULL);
 	this->setPlate(p->plate);
 	if (this->hMutex == NULL)
@@ -62,7 +64,10 @@ Passageiro::~Passageiro()
 {
 	CloseHandle(this->hMutex);
 }
-
+DOUBLE Passageiro::getTimeToArrive()
+{
+	return this->timeToArrive;
+}
 TCHAR* Passageiro::getId() const
 {
 	return this->id;
@@ -85,7 +90,6 @@ int Passageiro::getDestRow() const
 
 int Passageiro::getDestCol() const
 {
-
 	return this->dest_col;
 }
 
@@ -105,7 +109,7 @@ PASSENGER Passageiro::getStruct() const
 	passageiro.dest_col = this->getDestCol();
 	passageiro.dest_row = this->getDestRow();
 	passageiro.status = this->getStatus();
-
+	passageiro.timeToArrive = this->timeToArrive;
 	ReleaseMutex(this->hMutex);
 	return passageiro;
 }
@@ -187,7 +191,11 @@ void Passageiro::update(PASSENGER p)
 	this->dest_row = p.dest_row;
 	this->status = p.status;
 	this->setPlate(p.plate);
+	this->timeToArrive = p.timeToArrive;
 	ReleaseMutex(this->hMutex);
 }
-
+void Passageiro::setTimeToArrive(DOUBLE t)
+{
+	this->timeToArrive = t;
+}
 

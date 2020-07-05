@@ -6,7 +6,7 @@
 #include "WaitableTimer.h"
 #include "BufferCircular.h"
 
-#define DEFAULT_WAIT_TIME 10
+#define DEFAULT_WAIT_TIME 20
 
 class Central
 {

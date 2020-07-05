@@ -164,8 +164,21 @@ DWORD WINAPI MainMenuThread(LPVOID lpParam) {
             }
         }
         else if (_tcscmp(pch, TEXT("listarpassageiros")) == 0) {
-            // Colocar codigo na segunda meta;
-            _tprintf(TEXT("Esta funcionalidade ainda não está implementada!\n"));
+            if (central->getClients().size() > 0) {
+                for (int i = 0; i < central->getClients().size(); i++)
+                {
+                    if (central->getClients()[i]->getRow() == -1 && central->getClients()[i]->getCol() == -1) {
+                        _tprintf(TEXT("Passageiro %s está num carro a ser transportado.\n"), central->getClients()[i]->getId());
+                    }
+                    else {
+                        _tprintf(TEXT("Passageiro %s está na posição <%d, %d>.\n"), central->getClients()[i]->getId(), central->getClients()[i]->getRow(), central->getClients()[i]->getCol());
+
+                    }
+                }
+            }
+            else {
+                _tprintf(TEXT("Não existem passageiros associados à nossa central neste momento!\n"));
+            }
         }
         else if (_tcscmp(pch, TEXT("tempo")) == 0) {
             pch = _tcstok_s(something, TEXT(" "), &something);
@@ -449,7 +462,7 @@ DWORD WINAPI SendMapInfoThread(LPVOID lpParam) {
     MAPINFODATA* pBuf;
     LPCTSTR pMap;
     Central* central = (Central*)lpParam;
-    WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND);
+    WaitableTimer* wt = new WaitableTimer(WAIT_ONE_SECOND / 2);
 
     hFile = CreateFile(SHAREDMEMORY_MAPINFO, GENERIC_ALL, FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == NULL) {
@@ -630,19 +643,20 @@ DWORD WINAPI WaitForAnswers(LPVOID lpParam) {
     Central* central = (Central*)lpParam;
     WaitableTimer* wt = new WaitableTimer(central->getWaitTime() * WAIT_ONE_SECOND);
     wt->wait();
+
     PASSENGER *p = &central->bufferCircular->readPassenger();
     Passageiro* client = central->getPassageiro(p);
+    if (client == nullptr) {
+        _tprintf(TEXT("\nErro na leitura do passageiro escolhido!\nCOMMAND:"));
+        return EXIT_FAILURE;
+    }
     _tprintf(TEXT("\nO passageiro %s recebeu %d interesses!\nCOMMAND:"), client->getId(), (int)client->getInterested().size());
 
     Car * car = client->getRandomInterested();
     if (car != nullptr) {
         car->setClient(client->getId());
-        client->setStatus(STATUS::ACAMINHO);
         central->sendAnswer(car, client);
         _tprintf(TEXT("\nO carro %s vai transportar o passageiro %s\nCOMMAND:"), car->getPlate(), client->getId());
-        PASSENGER* p = &client->getStruct();
-        _tcscpy_s(p->plate, TAXI_PLATE_SIZE, car->getPlate());
-        central->writeConpassNP(p);
     }
     else {
         client->setStatus(STATUS::SEMINTERESSE);

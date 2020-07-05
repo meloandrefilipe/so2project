@@ -80,7 +80,6 @@
 
 #define BUFFER_CIRCULAR_SIZE 5
 
-
 // Vars
 
 #define MAX_CARS 7
@@ -111,16 +110,28 @@ enum class STATUS { SAIR, EMESPERA, NOCARRO, ENTREGUE, NOVO, ACEITE, REJEITADO, 
 enum class STATUS_TRANSPORT { ACEITE, REJEITADO, EXPULSO };
 enum class STATUS_TAXI { SAIR, IRPASSAGEIRO, IRDESTINO, ALEATORIO, NOCAMINHO, ENTREGUE};
 
+
+typedef struct COLOR_CAR {
+	int red;
+	int blue;
+	int green;
+} COLOR;
+
 typedef struct SHAREDMEMORY_TAXI {
+	int oldRow;
+	int oldCol;
 	int row;
 	int col;
 	int pid;
 	int nq;
 	DOUBLE speed;
+	DOUBLE timeToDestiny;
 	BOOL autopicker;
 	TCHAR plate[TAXI_PLATE_SIZE];
 	TCHAR client[PASSENGER_NAME_SIZE];
 	STATUS_TAXI status;
+	COLOR color;
+
 }TAXI;
 
 typedef struct SHAREDMEMORY_PLATE {
@@ -141,10 +152,13 @@ typedef struct NAMEDPIPE_CONPASS_PASSENGER_STRUCT {
 	int dest_col;
 	STATUS status;
 	TCHAR plate[TAXI_PLATE_SIZE];
+	DOUBLE timeToArrive;
 }PASSENGER;
 
 typedef struct SHAREDMEMORY_MAPINFODATA_STRUCT {
 	int size;
+	int cols;
+	int rows;
 	TAXI cars[MAX_CARS];
 	PASSENGER clients[MAX_CLIENTS];
 	int sizeClients;
@@ -166,3 +180,4 @@ typedef struct SHAREDMEMORY_INTEREST {
 	TCHAR car[TAXI_PLATE_SIZE];
 	TCHAR passenger[PASSENGER_NAME_SIZE];
 }INTEREST;
+

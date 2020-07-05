@@ -108,10 +108,10 @@ void Estacao::execStatus(Passageiro* passageiro){
 			msg << "[EM ESPERA] " << "O passageiro " << passageiro->getId() << " está em lista de espera por um taxi!"  << endl;
 			break;
 		case STATUS::ACAMINHO:
-			msg << "[A CAMINHO] " << "O taxi "<< passageiro->getPlate() <<" foi designado para o passageiro " << passageiro->getId() << "!" << endl;
+			msg << "[A CAMINHO] " << "O taxi "<< passageiro->getPlate() <<" foi designado para o passageiro " << passageiro->getId() << " e demora "<< passageiro->getTimeToArrive() << " segundos!" << endl;
 			break;
 		case STATUS::NOCARRO:
-			msg << "[TAXI] " << "O passageiro " << passageiro->getId() << " foi recolhido pelo taxi" << passageiro->getPlate() <<" e está a caminho do seu destino!" << endl;
+			msg << "[TAXI] " << "O passageiro " << passageiro->getId() << " foi recolhido pelo taxi" << passageiro->getPlate() <<" e está a caminho do seu destino, chega em "<< passageiro->getTimeToArrive() <<" segundos!" << endl;
 			break;
 		case STATUS::BUFFERCHEIO:
 			msg << "[BUFFERCHEIO] " << "O passageiro " << passageiro->getId() << " foi rejeitado devido ao grando fluxo de passageiros na aplicação!" << endl << "Tente novamente mais tarde!" << endl; 

@@ -72,18 +72,20 @@ DWORD BufferCircular::getTotalPassengers()
 BOOL BufferCircular::writePassenger(PASSENGER p){
 	DWORD nextPos = (this->currentWriteIndex + 1) % this->getBufferSize();
 	DWORD pos = this->currentWriteIndex;
-	if (nextPos != this->currentReadIndex ) {
-		this->bfc->dataArray[this->currentWriteIndex].row = p.row;
-		this->bfc->dataArray[this->currentWriteIndex].col = p.col;
-		this->bfc->dataArray[this->currentWriteIndex].dest_col = p.dest_col;
-		this->bfc->dataArray[this->currentWriteIndex].dest_row = p.dest_row;
-		this->bfc->dataArray[this->currentWriteIndex].status = p.status;
-		_tcscpy_s(this->bfc->dataArray[this->currentWriteIndex].id, PASSENGER_NAME_SIZE, p.id);
-		this->bfc->bufferPos = this->currentWriteIndex;
-		_tprintf(TEXT("\nEscrevi o %s no buffer circular na posição %d\nCOMMAND:"), p.id, this->currentWriteIndex);
-		SetEvent(this->hEvents[this->currentWriteIndex]);
+	if (_tcscmp(this->bfc->dataArray[pos].id, TEXT("")) == 0) {
+		this->bfc->dataArray[pos].row = p.row;
+		this->bfc->dataArray[pos].col = p.col;
+		this->bfc->dataArray[pos].dest_col = p.dest_col;
+		this->bfc->dataArray[pos].dest_row = p.dest_row;
+		this->bfc->dataArray[pos].status = p.status;
+		_tcscpy_s(this->bfc->dataArray[pos].id, PASSENGER_NAME_SIZE, p.id);
+		this->bfc->bufferPos = pos;
+		_tprintf(TEXT("\nEscrevi o %s no buffer circular na posição %d\nCOMMAND:"), p.id, pos);
+		SetEvent(this->hEvents[pos]);
 		this->currentWriteIndex = nextPos;
-		this->totalPassengers++;
+		if (this->totalPassengers < this->getBufferSize()) {
+			this->totalPassengers++;
+		}
 
 		return TRUE;
 	}
@@ -94,22 +96,23 @@ PASSENGER BufferCircular::readPassenger(){
 	PASSENGER p;
 	ZeroMemory(&p, sizeof(PASSENGER));
 	DWORD nextPos = (this->currentReadIndex + 1) % this->getBufferSize();
-	if (!this->isEmpty()) {
-		ResetEvent(this->hEvents[this->currentReadIndex]);
-		p.col = this->bfc->dataArray[this->currentReadIndex].col;
-		p.row = this->bfc->dataArray[this->currentReadIndex].row;
-		p.dest_col = this->bfc->dataArray[this->currentReadIndex].dest_col;
-		p.dest_row = this->bfc->dataArray[this->currentReadIndex].dest_row;
-		p.status = this->bfc->dataArray[this->currentReadIndex].status;
-		_tcscpy_s(p.id, PASSENGER_NAME_SIZE, this->bfc->dataArray[this->currentReadIndex].id);
-		ZeroMemory(&this->bfc->dataArray[this->currentReadIndex], sizeof(PASSENGER));
-		this->currentReadIndex = nextPos;
+	ResetEvent(this->hEvents[this->currentReadIndex]);
+	p.col = this->bfc->dataArray[this->currentReadIndex].col;
+	p.row = this->bfc->dataArray[this->currentReadIndex].row;
+	p.dest_col = this->bfc->dataArray[this->currentReadIndex].dest_col;
+	p.dest_row = this->bfc->dataArray[this->currentReadIndex].dest_row;
+	p.status = this->bfc->dataArray[this->currentReadIndex].status;
+	_tcscpy_s(p.id, PASSENGER_NAME_SIZE, this->bfc->dataArray[this->currentReadIndex].id);
+	ZeroMemory(&this->bfc->dataArray[this->currentReadIndex], sizeof(PASSENGER));
+	this->currentReadIndex = nextPos;
+	if (this->totalPassengers > 0) {
+		this->totalPassengers--;
 	}
 	return p;
 }
 BOOL BufferCircular::isEmpty()
 {
-	if (this->currentReadIndex == this->currentWriteIndex) {
+	if (this->totalPassengers > 0) {
 		return true;
 	}
 	return false;

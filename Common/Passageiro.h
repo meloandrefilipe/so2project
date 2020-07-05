@@ -15,6 +15,7 @@ class Passageiro
 	STATUS status;
 	vector<Car*> interested;
 	HANDLE hMutex;
+	DOUBLE timeToArrive;
 
 public:
 	Passageiro(TCHAR* id, int row, int col);
@@ -31,6 +32,8 @@ public:
 	vector<Car*> getInterested();
 	Car* getRandomInterested();
 	TCHAR* getPlate() const;
+	DOUBLE getTimeToArrive();
+	void setTimeToArrive(DOUBLE t);
 	
 	void setPlate(TCHAR* plate);
 	void addInterested(Car * car);

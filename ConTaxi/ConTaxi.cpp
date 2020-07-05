@@ -333,57 +333,6 @@ DWORD WINAPI CommandsThread(LPVOID lpParam) {
 				taxista->dll->log((TCHAR*)TEXT("Para utilizar este comando tem de desativar o autopicker! (ex: autopicker off)"), TYPE::WARNING);
 			}
 		}
-		else if (_tcscmp(pch, TEXT("goto")) == 0) {
-			pch = _tcstok_s(something, TEXT(" "), &something);
-			int row;
-			int col;
-			if (pch != NULL) {
-				try {
-					row = stoi(pch);
-				}
-				catch (invalid_argument) {
-					taxista->dll->log((TCHAR*)TEXT("Valor inválido!"), TYPE::WARNING);
-					continue;
-				}
-				catch (out_of_range) {
-					taxista->dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
-					continue;
-				}
-				pch = _tcstok_s(something, TEXT(" "), &something);
-				if (pch != NULL) {
-					try {
-						col = stoi(pch);
-					}
-					catch (invalid_argument) {
-						taxista->dll->log((TCHAR*)TEXT("Valor inválido!"), TYPE::WARNING);
-						continue;
-					}
-					catch (out_of_range) {
-						taxista->dll->log((TCHAR*)TEXT("Este valor não é muito grande?"), TYPE::WARNING);
-						continue;
-					}
-					if (row > taxista->getMap()->getRows() || row < 0 || col > taxista->getMap()->getCols() - 1 || col < 0) {
-						taxista->dll->log((TCHAR*)TEXT("As coordenadas inseridas não pertencem ao mapa!"), TYPE::WARNING);
-					}
-					else if (!taxista->getNodeAt(row, col)->isRoad()) {
-						taxista->dll->log((TCHAR*)TEXT("As coordenadas inseridas não são uma estrada, isto é um taxi não um 4x4!"), TYPE::WARNING);
-					}
-					else {
-						taxista->move.dest_row = row;
-						taxista->move.dest_col = col;
-						if (taxista->isRandomMove()) {
-							taxista->disableRandomMove();
-						}
-						else {
-							taxista->resetSmartPath();
-						}
-					}
-				}
-			}
-			if (pch == NULL) {
-				taxista->dll->log((TCHAR*)TEXT("O comando inserido não existe!"), TYPE::WARNING);
-			}
-		}
 		else {
 			taxista->dll->log((TCHAR*)TEXT("O comando inserido não existe!"), TYPE::WARNING);
 		}
@@ -481,10 +430,12 @@ DWORD TransportClient(Taxista* taxista, TRANSPORT* transport) {
 		BESTPATH path = bfs->getBestPath(src, dest);
 		INT i = 0;
 		DOUBLE speed = car->getSpeed();
+		car->setTimeToDestiny(((path.path.size() - 1 - i) * car->getSpeed()));
 		do {
 			i++;
 			if (speed != car->getSpeed() || i == 1) {
-				_tprintf(TEXT("Tempo para o destino: %0.6g segundos\n"), ((path.path.size() - 1 - i) * car->getSpeed()));
+				car->setTimeToDestiny(((path.path.size() - 1 - i) * car->getSpeed()));
+				_tprintf(TEXT("\nTempo para o destino: %0.6g segundos\nCOMMAND:"), car->getTimeToDestiny());
 			}
 			speed = car->getSpeed();
 			wt->updateTime((LONGLONG)(WAIT_ONE_SECOND * car->getSpeed()));

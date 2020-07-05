@@ -18,15 +18,9 @@
     <ClCompile Include="MapInfo.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Cidade.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="MapInfo.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Cidade.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

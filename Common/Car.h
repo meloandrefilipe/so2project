@@ -6,6 +6,7 @@
 #include <tchar.h>
 #include <strsafe.h>
 #include "Core.h"
+#include <time.h>
 
 #define SPEED 0.25 // são 250ms para mudar a posição
 #define MAX_SPEED 2 // a velocidade mais rapida para mudar posição é 250ms
@@ -14,6 +15,8 @@
 #define NQ 10
 
 class Car {
+	int oldRow;
+	int oldCol;
 	int row;
 	int col;
 	int id;
@@ -25,10 +28,18 @@ class Car {
 	HANDLE hNamedPipe;
 	STATUS_TAXI status;
 	TCHAR * client;
+	COLOR color;
+	DOUBLE timeToDestiny;
 public:
 	Car(int id, int row, int col, TCHAR * plate);
 	Car(TAXI* taxi);
 	~Car();
+
+	DOUBLE getTimeToDestiny();
+	void setTimeToDestiny(DOUBLE t);
+	COLOR getColor();
+	int getOldRow() const;
+	int getOldCol() const;
 	int getRow() const;
 	int getCol() const;
 	int getId() const;
